@@ -1,7 +1,17 @@
 package main
 
-import "log"
+import (
+	"fmt"
+	"log"
+	"net/http"
+)
 
 func main() {
-	log.Print("Hello, World!")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "hello")
+	})
+	if err := http.ListenAndServe(":3000", nil); err != nil {
+		log.Fatalln("server error: ", err)
+	}
+
 }
