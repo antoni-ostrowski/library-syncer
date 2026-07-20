@@ -20,20 +20,22 @@ const (
 	tokenPath       = "./data/secrets/token.json"
 	spreadsheetID   = "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI"
 	readRange       = "Unreleased"
-	OutputPath      = "sheet.csv"
+	outputPath      = "sheet.csv"
 )
 
-func DownloadSourceCsv() {
+func DownloadSourceCsv() (string, error) {
 	ctx := context.Background()
 
 	b, err := os.ReadFile(credentialsPath)
 	if err != nil {
-		log.Fatalf("unable to read credentials: %v", err)
+		log.Printf("unable to read credentials: %v", err)
+		return "", err
 	}
 
 	config, err := google.ConfigFromJSON(b, sheets.SpreadsheetsReadonlyScope)
 	if err != nil {
-		log.Fatalf("unable to parse credentials: %v", err)
+		log.Printf("unable to parse credentials: %v", err)
+		return "", err
 	}
 
 	// Must match an authorized redirect URI in Google Cloud Console.
@@ -43,24 +45,28 @@ func DownloadSourceCsv() {
 
 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
-		log.Fatalf("unable to create sheets service: %v", err)
+		log.Printf("unable to create sheets service: %v", err)
+		return "", err
 	}
 
 	resp, err := srv.Spreadsheets.Values.Get(spreadsheetID, readRange).Do()
 	if err != nil {
-		log.Fatalf("unable to retrieve data: %v", err)
+		log.Printf("unable to retrieve data: %v", err)
+		return "", err
 	}
 
 	if len(resp.Values) == 0 {
 		fmt.Println("No data found.")
-		return
+		return "", nil
 	}
 
-	if err := writeCSV(OutputPath, resp.Values); err != nil {
-		log.Fatalf("unable to write csv: %v", err)
+	if err := writeCSV(outputPath, resp.Values); err != nil {
+		log.Printf("unable to write csv: %v", err)
+		return "", err
 	}
 
-	fmt.Printf("wrote %d rows to %s\n", len(resp.Values), OutputPath)
+	fmt.Printf("wrote %d rows to %s\n", len(resp.Values), outputPath)
+	return outputPath, nil
 }
 
 func writeCSV(path string, rows [][]any) error {
