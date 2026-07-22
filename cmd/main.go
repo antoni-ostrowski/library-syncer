@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,7 +30,8 @@ func main() {
 	go func() {
 		for {
 			fmt.Printf("---executing the main loop... \n")
-			csvPath, err := srccsv.DownloadSourceCsv()
+			ctx := context.Background()
+			csvPath, err := srccsv.DownloadSourceCsv(ctx)
 			if err != nil {
 				fmt.Printf("failed to download source csv: %v\n", err)
 				continue
@@ -43,9 +45,15 @@ func main() {
 			}
 			fmt.Printf("we have %v source tracks\n", len(sourceTracks))
 
-			for _, t := range sourceTracks {
-				fmt.Printf("%+v\n", t)
+			// for _, t := range sourceTracks {
+			// 	fmt.Printf("%+v\n", t)
+			// }
+
+			syncResult, err := db.SyncTracks(ctx, &sourceTracks)
+			if err != nil {
+				fmt.Printf("failed to sync tracks: %v\n", err)
 			}
+			fmt.Println(syncResult)
 
 			time.Sleep(time.Second * 2)
 		}

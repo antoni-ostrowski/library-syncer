@@ -23,8 +23,7 @@ const (
 	outputPath      = "sheet.csv"
 )
 
-func DownloadSourceCsv() (string, error) {
-	ctx := context.Background()
+func DownloadSourceCsv(ctx context.Context) (string, error) {
 
 	b, err := os.ReadFile(credentialsPath)
 	if err != nil {
@@ -41,7 +40,7 @@ func DownloadSourceCsv() (string, error) {
 	// Must match an authorized redirect URI in Google Cloud Console.
 	config.RedirectURL = "http://localhost"
 
-	client := getClient(config)
+	client := getClient(ctx, config)
 
 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
@@ -90,16 +89,16 @@ func writeCSV(path string, rows [][]any) error {
 	return w.Error()
 }
 
-func getClient(config *oauth2.Config) *http.Client {
+func getClient(ctx context.Context, config *oauth2.Config) *http.Client {
 	tok, err := tokenFromFile(tokenPath)
 	if err != nil {
-		tok = getTokenFromWeb(config)
+		tok = getTokenFromWeb(ctx, config)
 		saveToken(tokenPath, tok)
 	}
-	return config.Client(context.Background(), tok)
+	return config.Client(ctx, tok)
 }
 
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
+func getTokenFromWeb(ctx context.Context, config *oauth2.Config) *oauth2.Token {
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 
 	fmt.Printf("Go to this URL in your browser and authorize the app:\n%s\n", authURL)
@@ -110,7 +109,7 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 		log.Fatalf("unable to read authorization code: %v", err)
 	}
 
-	tok, err := config.Exchange(context.Background(), authCode)
+	tok, err := config.Exchange(ctx, authCode)
 	if err != nil {
 		log.Fatalf("unable to exchange token: %v", err)
 	}
