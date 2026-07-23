@@ -132,7 +132,7 @@ func main() {
 			}
 
 			fmt.Printf("---sleeping... \n")
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Hour * 6)
 		}
 
 	}()

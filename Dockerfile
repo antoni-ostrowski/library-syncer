@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -ldflags="-s -w" -o library-syncer ./cmd/main.go
 
 FROM alpine:3.21 AS runner
-RUN apk add --no-cache rsync openssh-client ca-certificates
+RUN apk add --no-cache ffmpeg rsync openssh-client ca-certificates
 WORKDIR /app
 RUN mkdir -p /app/data/secrets
 RUN mkdir -p /app/data/covers
