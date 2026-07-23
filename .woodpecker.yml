@@ -11,6 +11,7 @@ steps:
         branch: main
 
   deploy:
+    depends_on: [build]
     image: docker:27-dind
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
