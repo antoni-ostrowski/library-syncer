@@ -9,3 +9,4 @@ data/covers
 docker-data
 .docker-env
 songs
+dev/
