@@ -6,15 +6,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
 	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/syncer"
 )
 
-const trackOutputDir = "dev-output"
+var trackOutputDir = os.Getenv("RSYNC_SRC")
 
 func main() {
 	devMode := flag.Bool("d", false, "dev mode (only download sample size)")
@@ -34,34 +36,60 @@ func main() {
 
 	go func() {
 		for {
+
 			fmt.Printf("---executing the main loop... \n")
 			ctx := context.WithValue(context.Background(), "devMode", *devMode)
+			fmt.Printf("---downloading source csv file... \n")
 			csvPath, err := srccsv.DownloadSourceCsv(ctx)
 			if err != nil {
 				fmt.Printf("failed to download source csv: %v\n", err)
+				if *devMode {
+					break
+				}
 				continue
 			}
 			fmt.Printf("csv at %v\n", csvPath)
 
+			fmt.Printf("---parsing source csv file... \n")
 			sourceTracks, err := parser.Parse(csvPath, trackOutputDir)
 			if err != nil {
 				fmt.Printf("failed to parse source csv: %v\n", err)
+				if *devMode {
+					break
+				}
 				continue
 			}
 			fmt.Printf("we have %v source tracks\n", len(sourceTracks))
 
+			fmt.Printf("---syncing source tracks to database... \n")
 			syncResult, err := db.SyncTracks(ctx, &sourceTracks)
 			if err != nil {
-				fmt.Printf("failed to sync tracks: %v\n", err)
+				fmt.Printf("failed to sync tracks to db: %v\n", err)
+				if *devMode {
+					break
+				}
+				continue
 			}
 			fmt.Println(syncResult)
 
+			fmt.Printf("---downloading tracks missing tracks... \n")
 			downloader.DownloadTracks(ctx, &sourceTracks, trackOutputDir)
+
+			fmt.Printf("---syncing files to client... \n")
+			err = syncer.SyncFiles()
+			if err != nil {
+				fmt.Printf("failed to sync files: %v\n", err)
+				if *devMode {
+					break
+				}
+				continue
+			}
 
 			if *devMode {
 				break
 			}
 
+			fmt.Printf("---sleeping... \n")
 			time.Sleep(time.Second * 2)
 		}
 

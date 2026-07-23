@@ -36,7 +36,7 @@ const (
 
 func DownloadTracks(ctx context.Context, sourceTracks *[]parser.Track, outputDir string) {
 	colors := []string{Red, Green, Yellow, Blue, Magenta, Cyan}
-	tracksCh := make(chan parser.Track)
+	tracksCh := make(chan parser.Track, 5000)
 	var processWg sync.WaitGroup
 
 	devMode, ok := ctx.Value("devMode").(bool)
