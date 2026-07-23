@@ -11,9 +11,16 @@ import (
 //go:embed schema.sql
 var schema string
 
-func OpenDb() (*sql.DB, error) {
+func OpenDb(devMode bool) (*sql.DB, error) {
 	fmt.Println("opening conn to db...")
-	db, err := sql.Open("sqlite", "file:data.db?_journal_mode=WAL")
+
+	var dbPath string
+	if devMode {
+		dbPath = "file:data.db?_journal_mode=WAL"
+	} else {
+		dbPath = "file:///app/data/db/data.db?_journal_mode=WAL"
+	}
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
 	}

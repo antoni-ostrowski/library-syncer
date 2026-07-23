@@ -19,14 +19,20 @@ import (
 var trackOutputDir = os.Getenv("RSYNC_SRC")
 
 func main() {
-	devMode := flag.Bool("d", false, "dev mode (only download sample size)")
+	devMode := flag.Bool("d", false, "dev mode (only download sample size + 1 loop iteration)")
 	flag.Parse()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello")
 	})
+
+	if err := os.MkdirAll(trackOutputDir, 0755); err != nil {
+		log.Fatalf("failed to create track output dir (RSYNC_SRC): %v", err)
+	}
+
 	fmt.Printf("dev mode %v\n", *devMode)
 
-	dbConn, err := db.OpenDb()
+	dbConn, err := db.OpenDb(*devMode)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err.Error())
 	}
