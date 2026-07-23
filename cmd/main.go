@@ -38,7 +38,16 @@ func main() {
 	}
 
 	db := db.NewDbService(dbConn)
-	_ = db
+
+	// first run to let the auth flow (pasting code to stdin)
+	_, err = srccsv.DownloadSourceCsv(context.Background())
+	if err != nil {
+		fmt.Printf("failed to download source csv: %v\n", err)
+		if *devMode {
+			return
+		}
+		return
+	}
 
 	go func() {
 		for {

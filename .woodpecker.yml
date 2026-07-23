@@ -1,0 +1,28 @@
+steps:
+  build:
+    image: docker:27-dind
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - ./scripts/docker-build.sh
+    when:
+      - event: pull_request
+      - event: push
+        branch: main
+
+  deploy:
+    image: docker:27-dind
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/antost/homelab:/home/antost/homelab:ro
+    environment:
+      DOCKERHUB_PASSWORD:
+        from_secret: DOCKERHUB_PASSWORD 
+    commands:
+      - echo "$DOCKERHUB_PASSWORD" | docker login -u antost360 --password-stdin
+      - docker push antost360/library-syncer:latest
+      - cd /home/antost/homelab && docker compose --profile="library-syncer" up -d library-syncer 
+      - docker image prune -f
+    when:
+      - event: push
+        branch: main

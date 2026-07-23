@@ -16,4 +16,5 @@ COPY --from=builder /app/library-syncer .
 COPY --from=builder /app/data/covers ./data/covers
 RUN mkdir -p /app/data/secrets
 RUN mkdir -p /app/data/db
+RUN touch /app/data/secrets/code.txt
 CMD ["./library-syncer"]

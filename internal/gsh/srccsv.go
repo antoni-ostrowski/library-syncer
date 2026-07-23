@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -99,21 +101,48 @@ func getClient(ctx context.Context, config *oauth2.Config) *http.Client {
 }
 
 func getTokenFromWeb(ctx context.Context, config *oauth2.Config) *oauth2.Token {
+	path := "./data/secrets/code.txt"
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 
 	fmt.Printf("Go to this URL in your browser and authorize the app:\n%s\n", authURL)
-	fmt.Printf("After authorization, copy the code from the browser URL and paste it here (submit with enter):\n")
+	fmt.Printf("After authorization, write the code from the URL to %s\n", path)
 
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatalf("unable to read authorization code: %v", err)
-	}
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
-	tok, err := config.Exchange(ctx, authCode)
-	if err != nil {
-		log.Fatalf("unable to exchange token: %v", err)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Fatalf("timeout waiting for authorization code")
+		case <-ticker.C:
+		}
+
+		fmt.Printf("--- reading code from %s\n", path)
+		b, err := os.ReadFile(path)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				fmt.Printf("failed to read code file: %v\n", err)
+			}
+			continue
+		}
+
+		code := strings.TrimSpace(string(b))
+		if code == "" {
+			fmt.Printf("code file is empty, waiting...\n")
+			continue
+		}
+
+		tok, err := config.Exchange(ctx, code)
+		if err != nil {
+			log.Fatalf("unable to exchange token: %v", err)
+		}
+
+		if err := os.WriteFile(path, []byte{}, 0600); err != nil {
+			fmt.Printf("warning: failed to clear code file: %v\n", err)
+		}
+
+		return tok
 	}
-	return tok
 }
 
 func tokenFromFile(file string) (*oauth2.Token, error) {
