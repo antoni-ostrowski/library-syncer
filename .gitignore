@@ -3,3 +3,4 @@ data/secrets/
 token.json
 credentials.json
 data.db
+dev-output

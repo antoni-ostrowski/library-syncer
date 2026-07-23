@@ -61,7 +61,7 @@ func Parse(csvPath string, trackOutputDir string) ([]Track, error) {
 			continue
 		}
 		track.Name = strings.Join(strings.Fields(track.Name), " ")
-		track.OutputFilePath = path.Join(trackOutputDir, track.Name+".mp3")
+		track.OutputFilePath = path.Join(trackOutputDir, track.Name)
 		track.RealLinks = links
 		cleanedTracks = append(cleanedTracks, *track)
 	}

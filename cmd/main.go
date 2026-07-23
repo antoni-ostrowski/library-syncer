@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
+	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
 	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 )
@@ -15,9 +17,12 @@ import (
 const trackOutputDir = "dev-output"
 
 func main() {
+	devMode := flag.Bool("d", false, "dev mode (only download sample size)")
+	flag.Parse()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello")
 	})
+	fmt.Printf("dev mode %v\n", *devMode)
 
 	dbConn, err := db.OpenDb()
 	if err != nil {
@@ -30,7 +35,7 @@ func main() {
 	go func() {
 		for {
 			fmt.Printf("---executing the main loop... \n")
-			ctx := context.Background()
+			ctx := context.WithValue(context.Background(), "devMode", *devMode)
 			csvPath, err := srccsv.DownloadSourceCsv(ctx)
 			if err != nil {
 				fmt.Printf("failed to download source csv: %v\n", err)
@@ -45,15 +50,17 @@ func main() {
 			}
 			fmt.Printf("we have %v source tracks\n", len(sourceTracks))
 
-			// for _, t := range sourceTracks {
-			// 	fmt.Printf("%+v\n", t)
-			// }
-
 			syncResult, err := db.SyncTracks(ctx, &sourceTracks)
 			if err != nil {
 				fmt.Printf("failed to sync tracks: %v\n", err)
 			}
 			fmt.Println(syncResult)
+
+			downloader.DownloadTracks(ctx, &sourceTracks, trackOutputDir)
+
+			if *devMode {
+				break
+			}
 
 			time.Sleep(time.Second * 2)
 		}

@@ -1,4 +1,8 @@
-# library sync tool
+# Music library sync tool
 
-This project is evolution of my other library tool ([tracker-downloader](https://github.com/antoni-ostrowski/tracker-downloader))
+> This project is evolution of my other music library script ([tracker-downloader](https://github.com/antoni-ostrowski/tracker-downloader))
+
+
+
+
 
