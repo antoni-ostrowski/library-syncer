@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"log"
+	"os"
+	"path"
 
 	_ "modernc.org/sqlite"
 )
@@ -11,16 +14,15 @@ import (
 //go:embed schema.sql
 var schema string
 
-func OpenDb(devMode bool) (*sql.DB, error) {
+func OpenDb() (*sql.DB, error) {
 	fmt.Println("opening conn to db...")
+	dbPath := os.Getenv("DB_PATH")
 
-	var dbPath string
-	if devMode {
-		dbPath = "file:data.db?_journal_mode=WAL"
-	} else {
-		dbPath = "file:///app/data/db/data.db?_journal_mode=WAL"
+	if err := os.MkdirAll(dbPath, 0755); err != nil {
+		log.Fatalf("failed to create db dir %v", err)
 	}
-	db, err := sql.Open("sqlite", dbPath)
+
+	db, err := sql.Open("sqlite", path.Join(dbPath, "data.db?_journal_mode=WAL"))
 	if err != nil {
 		return nil, err
 	}

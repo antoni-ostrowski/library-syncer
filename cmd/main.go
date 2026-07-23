@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
@@ -16,23 +18,48 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/syncer"
 )
 
-var trackOutputDir = os.Getenv("RSYNC_SRC")
-
 func main() {
+	loadEnv(".env.local")
+
+	requiredEnvs := []string{
+		"RSYNC_USER",
+		"RSYNC_HOSTNAME",
+		"RSYNC_DEST",
+		"SSH_KEY",
+		"DB_PATH",
+		"SONGS_PATH",
+		"SECRETS_PATH",
+		"WORKER_COUNT",
+		"ASSETS_PATH",
+	}
+
+	if err := ValidateEnvs(requiredEnvs); err != nil {
+		fmt.Printf("Startup Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Environment configuration loaded successfully.")
+
 	devMode := flag.Bool("d", false, "dev mode (only download sample size + 1 loop iteration)")
 	flag.Parse()
+	var trackOutputDir = os.Getenv("SONGS_PATH")
+
+	toCreate := []string{trackOutputDir, os.Getenv("SECRETS_PATH")}
+
+	for _, v := range toCreate {
+		if err := os.MkdirAll(v, 0755); err != nil {
+			log.Fatalf("failed to create dir: %v", err)
+		}
+
+	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello")
 	})
 
-	if err := os.MkdirAll(trackOutputDir, 0755); err != nil {
-		log.Fatalf("failed to create track output dir (RSYNC_SRC): %v", err)
-	}
-
 	fmt.Printf("dev mode %v\n", *devMode)
 
-	dbConn, err := db.OpenDb(*devMode)
+	dbConn, err := db.OpenDb()
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err.Error())
 	}
@@ -114,4 +141,38 @@ func main() {
 		log.Fatalln("server error: ", err)
 	}
 
+}
+func ValidateEnvs(required []string) error {
+	var missing []string
+
+	for _, env := range required {
+		if strings.TrimSpace(os.Getenv(env)) == "" {
+			missing = append(missing, env)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required environment variables:\n  - %s", strings.Join(missing, "\n  - "))
+	}
+
+	return nil
+}
+func loadEnv(filepath string) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
 }

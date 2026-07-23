@@ -5,3 +5,7 @@ credentials.json
 data.db
 dev-output
 library-syncer
+data/covers
+docker-data
+.docker-env
+songs

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -19,8 +20,8 @@ import (
 
 const baseApiUrl = "https://api.pillows.su"
 const downloadEndpoint = "/api/download/"
-const workerCount = 6
-const baseCoverPath = "data/covers"
+
+var baseCoverPath = os.Getenv("ASSETS_PATH")
 
 type DebugLogFunc func(format string, a ...any)
 
@@ -43,6 +44,7 @@ func DownloadTracks(ctx context.Context, sourceTracks *[]parser.Track, outputDir
 	if !ok {
 		return
 	}
+	workerCount := getWorkerCount()
 
 	for i := range workerCount {
 		processWg.Add(1)
@@ -234,4 +236,15 @@ func processVideoToAudio(mp4Path string, debugLog DebugLogFunc) error {
 
 	debugLog("Success! File replaced with MP3.\n")
 	return nil
+}
+func getWorkerCount() int {
+	s := os.Getenv("WORKER_COUNT")
+	if s == "" {
+		return 4
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 {
+		return 4
+	}
+	return n
 }

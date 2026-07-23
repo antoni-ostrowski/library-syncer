@@ -1,12 +1,10 @@
 #!/bin/sh
 
-docker run -it \
-  -v ./data/secrets/:/app/data/secrets \
+
+docker run  \
+  -v ./docker-data/:/app/data \
   -v ~/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro \
   -v ~/.ssh/known_hosts:/root/.ssh/known_hosts:ro \
-  -e SSH_KEY=/root/.ssh/id_ed25519 \
-  -e RSYNC_HOST=linux \
-  -e RSYNC_USER=antost \
-  -e RSYNC_SRC=./songs \
-  -e RSYNC_DEST=/home/antost/mac-test \
+  --env-file ./scripts/.docker-env \
   antost360/library-syncer:latest
+
