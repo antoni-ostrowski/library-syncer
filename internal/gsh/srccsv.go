@@ -27,6 +27,7 @@ const (
 )
 
 func DownloadSourceCsv(ctx context.Context) (string, error) {
+	fmt.Printf("---downloading source csv file... \n")
 	credPath := path.Join(os.Getenv("SECRETS_PATH"), "credentials.json")
 	b, err := os.ReadFile(credPath)
 	if err != nil {

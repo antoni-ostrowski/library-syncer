@@ -38,6 +38,7 @@ func init() {
 }
 
 func Parse(csvPath string, trackOutputDir string) ([]Track, error) {
+	fmt.Printf("---parsing source csv file... \n")
 	tracksFile, err := os.OpenFile(csvPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file")

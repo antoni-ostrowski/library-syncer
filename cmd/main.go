@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 )
 
 func main() {
+
 	loadEnv(".env.local")
 
 	requiredEnvs := []string{
@@ -26,6 +28,13 @@ func main() {
 		"SECRETS_PATH",
 		"WORKER_COUNT",
 		"ASSETS_PATH",
+		"SLEEP_SEC",
+	}
+
+	sleepSec, err := strconv.Atoi(os.Getenv("SLEEP_SEC"))
+	if err != nil {
+		fmt.Printf("Startup Error: incorrect sleep sec env value, expected number: %v\n", err)
+		os.Exit(1)
 	}
 
 	if err := ValidateEnvs(requiredEnvs); err != nil {
@@ -73,10 +82,8 @@ func main() {
 
 	go func() {
 		for {
-
 			fmt.Printf("---executing the main loop... \n")
 			ctx := context.WithValue(context.Background(), "devMode", *devMode)
-			fmt.Printf("---downloading source csv file... \n")
 			csvPath, err := srccsv.DownloadSourceCsv(ctx)
 			if err != nil {
 				fmt.Printf("failed to download source csv: %v\n", err)
@@ -87,7 +94,6 @@ func main() {
 			}
 			fmt.Printf("csv at %v\n", csvPath)
 
-			fmt.Printf("---parsing source csv file... \n")
 			sourceTracks, err := parser.Parse(csvPath, trackOutputDir)
 			if err != nil {
 				fmt.Printf("failed to parse source csv: %v\n", err)
@@ -96,9 +102,8 @@ func main() {
 				}
 				continue
 			}
-			fmt.Printf("we have %v source tracks\n", len(sourceTracks))
+			fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-			fmt.Printf("---syncing source tracks to database... \n")
 			syncResult, err := db.SyncTracks(ctx, &sourceTracks)
 			if err != nil {
 				fmt.Printf("failed to sync tracks to db: %v\n", err)
@@ -109,15 +114,16 @@ func main() {
 			}
 			fmt.Println(syncResult)
 
-			fmt.Printf("---downloading tracks missing tracks... \n")
-			downloader.DownloadTracks(ctx, &syncResult.TracksToDownload, trackOutputDir)
+			if len(syncResult.TracksToDownload) > 0 {
+				downloader.DownloadTracks(ctx, &syncResult.TracksToDownload, trackOutputDir)
+			}
 
 			if *devMode {
 				break
 			}
 
 			fmt.Printf("---sleeping... \n")
-			time.Sleep(time.Hour * 2)
+			time.Sleep(time.Second * time.Duration(sleepSec))
 		}
 
 	}()

@@ -30,6 +30,7 @@ func (s SyncResult) String() string {
 }
 
 func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track) (SyncResult, error) {
+	fmt.Printf("---syncing source tracks to database... \n")
 
 	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
