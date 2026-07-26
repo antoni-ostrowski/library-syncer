@@ -10,3 +10,4 @@ docker-data
 .docker-env
 songs
 dev/
+yeat-short.csv

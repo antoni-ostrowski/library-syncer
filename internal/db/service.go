@@ -26,7 +26,7 @@ type SyncResult struct {
 }
 
 func (s SyncResult) String() string {
-	return fmt.Sprintf("updated or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
+	return fmt.Sprintf("inserted or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
 }
 
 func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track) (SyncResult, error) {

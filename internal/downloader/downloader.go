@@ -62,8 +62,10 @@ func DownloadTracks(ctx context.Context, sourceTracks *[]parser.Track, outputDir
 				debugLog("[WORKER %v] processing %v \n", id, track.Name)
 
 				for _, link := range track.RealLinks {
+					fmt.Printf("DOWNLOADING LINK: %v\n", link)
 
-					matches, err := filepath.Glob(filepath.Join(outputDir, track.Name+".*"))
+					trackId := getTrackId(link)
+					matches, err := filepath.Glob(filepath.Join(outputDir, track.Name+trackId+".*"))
 					if err == nil && len(matches) > 0 {
 						debugLog("[WORKER %v] File %s already exists, skipping...\n", id, track.Name)
 						continue
@@ -170,7 +172,8 @@ func downloadFile(downloadLink string, track parser.Track, outputDir string, deb
 		ext = ".ogg"
 	}
 
-	finalName := path.Join(outputDir, track.Name+ext)
+	trackId := getTrackId(downloadLink)
+	finalName := path.Join(outputDir, track.Name+trackId+ext)
 
 	debugLog("%v Saving as: '%v'\n", workerInfoStr, finalName)
 
@@ -248,4 +251,13 @@ func getWorkerCount() int {
 		return 4
 	}
 	return n
+}
+
+func getTrackId(link string) string {
+	s := link
+	trackId := ""
+	if len(s) >= 32 {
+		trackId = s[len(s)-32:]
+	}
+	return "---" + trackId
 }

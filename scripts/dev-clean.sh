@@ -1,3 +1,6 @@
 #!/bin/sh
-rm -rf ../dev/data.db
-rm -rf ../dev/songs/*
+
+scripts/clean.sh &&
+scripts/dev.sh
+
+
