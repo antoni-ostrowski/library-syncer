@@ -1,6 +1,6 @@
 # Music library syncer
 
-> Go daemon that syncs a music library from a Google Sheet to a disk storage.
+> Go daemon that syncs a music library from a Google Sheet to a storage.
 > Evolution of the older [`tracker-downloader`](https://github.com/antoni-ostrowski/tracker-downloader).
 
 ## What it does
