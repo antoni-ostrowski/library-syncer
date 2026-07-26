@@ -1,6 +1,6 @@
 # Music library syncer
 
-> Go daemon that syncs a music library from a Google Sheet to a remote storage host via `rsync`.
+> Go daemon that syncs a music library from a Google Sheet to a disk storage.
 > Evolution of the older [`tracker-downloader`](https://github.com/antoni-ostrowski/tracker-downloader).
 
 ## What it does
@@ -10,8 +10,7 @@
 3. Downloads tracks from the API.
 4. Writes tags (album = era, title, artist, custom notes) and embeds the era cover image.
 5. Keeps track metadata in an SQLite database (deletes removed rows, upserts changed ones).
-6. Syncs the downloaded song directory to a remote host via `rsync` over SSH.
-7. Repeats every 2 hours.
+7. Repeats every few hours.
 
 
 ## Run locally
@@ -53,10 +52,6 @@ The image is published as `antost360/library-syncer:latest`.
 
 | Variable | Purpose | Example (local) | Example (Docker) |
 |---|---|---|---|
-| `RSYNC_USER` | SSH user for the sync target | `antost` | `antost` |
-| `RSYNC_HOSTNAME` | SSH host for the sync target | `linux` | `linux` |
-| `RSYNC_DEST` | Remote path to sync songs into | `/home/antost/mac-test` | `/home/antost/mac-test` |
-| `SSH_KEY` | SSH private key path | `~/.ssh/id_ed25519` | `/root/.ssh/id_ed25519` |
 | `DB_PATH` | Directory for the SQLite file | `.` | `/app/data/db` |
 | `SONGS_PATH` | Directory for downloaded tracks | `dev/songs` | `/app/data/songs` |
 | `SECRETS_PATH` | Directory for Google credentials/tokens | `dev/data/secrets` | `/app/data/secrets` |
@@ -78,11 +73,10 @@ Place inside `SECRETS_PATH`:
 .
 ├── cmd/main.go              # Entry point + env loading + loop
 ├── internal
-│   ├── db                   # SQLite schema, migrations, sync logic
+│   ├── db                   # SQLite schema, migrations, 
 │   ├── downloader           # pillows.su API downloader + tagging
 │   ├── gsh                  # Google Sheet CSV download
 │   ├── parser               # CSV → track model
-│   └── syncer               # rsync over SSH
 ├── scripts                  # build, dev, docker build/run/deploy
 ├── assets/covers            # Cover images
 ├── Dockerfile
@@ -96,4 +90,3 @@ Place inside `SECRETS_PATH`:
 - Google Sheets API v4 + OAuth2
 - taglib for metadata / cover embedding
 - ffmpeg for mp4 → mp3 conversion
-- rsync over SSH for remote sync

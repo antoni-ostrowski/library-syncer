@@ -21,7 +21,7 @@ import (
 const baseApiUrl = "https://api.pillows.su"
 const downloadEndpoint = "/api/download/"
 
-var baseCoverPath = os.Getenv("ASSETS_PATH")
+var baseCoverPath = path.Join(os.Getenv("ASSETS_PATH"), "covers")
 
 type DebugLogFunc func(format string, a ...any)
 

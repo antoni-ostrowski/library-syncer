@@ -20,15 +20,17 @@ func NewDbService(db *sql.DB) *DbService {
 }
 
 type SyncResult struct {
-	insertedOrUpdated int
-	deletionsCount    int
+	InsertedOrUpdated int
+	DeletionsCount    int
+	TracksToDownload  []parser.Track
 }
 
 func (s SyncResult) String() string {
-	return fmt.Sprintf("updated or updated: %v, deleted: %v", s.insertedOrUpdated, s.deletionsCount)
+	return fmt.Sprintf("updated or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
 }
 
 func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track) (SyncResult, error) {
+
 	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
 		return SyncResult{}, err
@@ -65,7 +67,8 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 
 		if changed == 0 {
 		} else {
-			result.insertedOrUpdated++
+			result.InsertedOrUpdated++
+			result.TracksToDownload = append(result.TracksToDownload, t)
 		}
 
 		freshIds[hashId] = struct{}{}
@@ -86,7 +89,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?;", dbId); err != nil {
 				return SyncResult{}, err
 			}
-			result.deletionsCount++
+			result.DeletionsCount++
 		}
 	}
 

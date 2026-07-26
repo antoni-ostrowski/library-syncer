@@ -15,17 +15,12 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
 	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
-	"github.com/antoni-ostrowski/library-syncer/internal/syncer"
 )
 
 func main() {
 	loadEnv(".env.local")
 
 	requiredEnvs := []string{
-		"RSYNC_USER",
-		"RSYNC_HOSTNAME",
-		"RSYNC_DEST",
-		"SSH_KEY",
 		"DB_PATH",
 		"SONGS_PATH",
 		"SECRETS_PATH",
@@ -115,17 +110,7 @@ func main() {
 			fmt.Println(syncResult)
 
 			fmt.Printf("---downloading tracks missing tracks... \n")
-			downloader.DownloadTracks(ctx, &sourceTracks, trackOutputDir)
-
-			fmt.Printf("---syncing files to client... \n")
-			err = syncer.SyncFiles()
-			if err != nil {
-				fmt.Printf("failed to sync files: %v\n", err)
-				if *devMode {
-					break
-				}
-				continue
-			}
+			downloader.DownloadTracks(ctx, &syncResult.TracksToDownload, trackOutputDir)
 
 			if *devMode {
 				break
