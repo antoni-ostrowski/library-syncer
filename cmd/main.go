@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
 	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/web"
 )
 
 func main() {
@@ -56,10 +56,6 @@ func main() {
 		}
 
 	}
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "hello")
-	})
 
 	fmt.Printf("dev mode %v\n", *devMode)
 
@@ -127,12 +123,10 @@ func main() {
 		}
 
 	}()
-
-	if err := http.ListenAndServe(":3000", nil); err != nil {
-		log.Fatalln("server error: ", err)
-	}
+	web.SetupServer()
 
 }
+
 func ValidateEnvs(required []string) error {
 	var missing []string
 

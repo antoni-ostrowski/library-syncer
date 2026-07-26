@@ -62,7 +62,6 @@ func DownloadTracks(ctx context.Context, sourceTracks *[]parser.Track, outputDir
 				debugLog("[WORKER %v] processing %v \n", id, track.Name)
 
 				for _, link := range track.RealLinks {
-					fmt.Printf("DOWNLOADING LINK: %v\n", link)
 
 					trackId := getTrackId(link)
 					matches, err := filepath.Glob(filepath.Join(outputDir, track.Name+trackId+".*"))
