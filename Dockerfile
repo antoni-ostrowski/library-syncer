@@ -19,8 +19,8 @@ FROM alpine:3.21 AS runner
 RUN apk add --no-cache ffmpeg rsync openssh-client ca-certificates
 WORKDIR /app
 RUN mkdir -p /app/data/secrets
-RUN mkdir -p /app/data/covers
+RUN mkdir -p /app/assets/covers
 RUN mkdir -p /app/data/db
+COPY --from=builder /app/assets/covers /app/assets/covers
 COPY --from=builder /app/library-syncer .
-COPY --from=builder /app/assets/covers ./data/covers
 CMD ["./library-syncer"]
