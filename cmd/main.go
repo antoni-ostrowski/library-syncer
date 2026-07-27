@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
@@ -89,7 +90,6 @@ var edwardTracker = parser.NewTracker("edward skeletrix", "1CnfVdc37A81ZX7lUs4L-
 })
 
 func main() {
-
 	loadEnv(".env.local")
 
 	requiredEnvs := []string{
@@ -149,12 +149,19 @@ func main() {
 	}
 
 	go func() {
+		var wg sync.WaitGroup
 		for {
 			fmt.Printf("---executing the main loop... \n")
 
 			for _, v := range toPerform {
-				ExecuteTracker(db, devMode, trackOutputDir, v)
+				wg.Add(1)
+				go func(t parser.Tracker) {
+					ExecuteTracker(db, devMode, trackOutputDir, t)
+					wg.Done()
+				}(v)
 			}
+
+			wg.Wait()
 
 			if *devMode {
 				break
