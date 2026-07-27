@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 	"go.senan.xyz/taglib"
@@ -35,50 +34,38 @@ const (
 	Reset   = "\033[0m"
 )
 
-func DownloadTracks(ctx context.Context, sourceTracks *[]parser.Track, outputDir string) {
-	fmt.Printf("---downloading tracks missing tracks... \n")
+func DownloadTracks(ctx context.Context, devMode bool, tracksToDownload <-chan parser.Track, outputDir string) {
+	fmt.Printf("---downloading tracks tracks... \n")
 	colors := []string{Red, Green, Yellow, Blue, Magenta, Cyan}
-	tracksCh := make(chan parser.Track, 5000)
-	var processWg sync.WaitGroup
 
-	devMode, ok := ctx.Value("devMode").(bool)
-	if !ok {
-		return
-	}
 	workerCount := getWorkerCount()
 
-	for i := range workerCount {
-		processWg.Add(1)
-
-		go func(id int, devMode bool) {
-			defer processWg.Done()
+	for id := range workerCount {
+		go func() {
 			color := colors[id%len(colors)]
 			debugLog := func(format string, a ...any) {
-				fmt.Printf(color+format+Reset, a...)
+				fmt.Printf(color+"[WORKER %v] "+format+Reset, append([]any{id}, a...)...)
 			}
 
-			for track := range tracksCh {
-
-				debugLog("[WORKER %v] processing %v \n", id, track.Name)
-
+			for track := range tracksToDownload {
+				debugLog("processing %v \n", track.Name)
 				for _, link := range track.RealLinks {
-
 					trackId := getTrackId(link)
 					matches, err := filepath.Glob(filepath.Join(outputDir, track.Name+trackId+".*"))
 					if err == nil && len(matches) > 0 {
-						debugLog("[WORKER %v] File %s already exists, skipping...\n", id, track.Name)
+						debugLog("File %s already exists, skipping...\n", track.Name)
 						continue
 					}
 
 					downloadLink := createDownloadUrl(link)
 					if len(downloadLink) == 0 {
-						debugLog("[WORKER %v] No download link found", id)
+						debugLog("No download link found\n")
 						continue
 					}
 
-					debugLog("[WORKER %v] attempting to download %v \n", id, downloadLink)
+					debugLog("attempting to download %v \n", downloadLink)
 
-					finalName, err := downloadFile(downloadLink, track, outputDir, debugLog, fmt.Sprintf("[WORKER %v]", id))
+					finalName, err := downloadFile(downloadLink, track, outputDir, debugLog)
 					if err != nil {
 						debugLog("Failed to download file %v \n", err)
 						continue
@@ -111,7 +98,7 @@ func DownloadTracks(ctx context.Context, sourceTracks *[]parser.Track, outputDir
 						continue
 					}
 
-					debugLog("[WORKER %v] successfully downloaded %v \n", id, track.Name)
+					debugLog("successfully downloaded %v \n", track.Name)
 
 				}
 
@@ -121,17 +108,10 @@ func DownloadTracks(ctx context.Context, sourceTracks *[]parser.Track, outputDir
 
 			}
 
-		}(i, devMode)
+		}()
 
 	}
 
-	for _, t := range *sourceTracks {
-		tracksCh <- t
-	}
-
-	close(tracksCh)
-
-	processWg.Wait()
 }
 
 func createDownloadUrl(link string) string {
@@ -146,7 +126,7 @@ func createDownloadUrl(link string) string {
 	return downloadLink
 }
 
-func downloadFile(downloadLink string, track parser.Track, outputDir string, debugLog DebugLogFunc, workerInfoStr string) (string, error) {
+func downloadFile(downloadLink string, track parser.Track, outputDir string, debugLog DebugLogFunc) (string, error) {
 	resp, err := http.Get(downloadLink)
 	if err != nil {
 		return "", errors.New("Failed to request the download link %v")
@@ -174,7 +154,7 @@ func downloadFile(downloadLink string, track parser.Track, outputDir string, deb
 	trackId := getTrackId(downloadLink)
 	finalName := path.Join(outputDir, track.Name+trackId+ext)
 
-	debugLog("%v Saving as: '%v'\n", workerInfoStr, finalName)
+	debugLog("Saving as: '%v'\n", finalName)
 
 	outFile, err := os.Create(finalName)
 	if err != nil {
@@ -192,7 +172,7 @@ func downloadFile(downloadLink string, track parser.Track, outputDir string, deb
 		if err == nil {
 			finalName = strings.TrimSuffix(finalName, ".mp4") + ".mp3"
 		} else {
-			debugLog("Error:", err)
+			debugLog("Error: %v\n", err)
 		}
 	}
 

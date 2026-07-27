@@ -21,6 +21,7 @@ WORKDIR /app
 RUN mkdir -p /app/data/secrets
 RUN mkdir -p /app/assets/covers
 RUN mkdir -p /app/data/db
+RUN mkdir -p /app/sheets
 COPY --from=builder /app/assets/covers /app/assets/covers
 COPY --from=builder /app/library-syncer .
 CMD ["./library-syncer"]

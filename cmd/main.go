@@ -10,7 +10,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
@@ -99,6 +98,7 @@ func main() {
 		"WORKER_COUNT",
 		"ASSETS_PATH",
 		"SLEEP_SEC",
+		"SHEETS_PATH",
 	}
 
 	sleepSec, err := strconv.Atoi(os.Getenv("SLEEP_SEC"))
@@ -148,20 +148,17 @@ func main() {
 		edwardTracker,
 	}
 
+	tracksToDownload := make(chan parser.Track, 10000)
+
 	go func() {
-		var wg sync.WaitGroup
 		for {
 			fmt.Printf("---executing the main loop... \n")
 
+			ctx := context.Background()
+			downloader.DownloadTracks(ctx, *devMode, tracksToDownload, trackOutputDir)
 			for _, v := range toPerform {
-				wg.Add(1)
-				go func(t parser.Tracker) {
-					ExecuteTracker(db, devMode, trackOutputDir, t)
-					wg.Done()
-				}(v)
+				ExecuteTracker(ctx, db, devMode, trackOutputDir, v, tracksToDownload)
 			}
-
-			wg.Wait()
 
 			if *devMode {
 				break
@@ -174,14 +171,14 @@ func main() {
 	}()
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
+		close(tracksToDownload)
 		log.Fatalln("server error: ", err)
 	}
 
 }
 
-func ExecuteTracker(db *db.DbService, devMode *bool, trackOutputDir string, tracker parser.Tracker) {
+func ExecuteTracker(ctx context.Context, db *db.DbService, devMode *bool, trackOutputDir string, tracker parser.Tracker, tracksToDownload chan<- parser.Track) {
 	fmt.Printf("running for %v\n", tracker.Artist)
-	ctx := context.WithValue(context.Background(), "devMode", *devMode)
 	csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.SpreadsheetID, tracker.ReadRange)
 	if err != nil {
 		fmt.Printf("failed to download source csv: %v\n", err)
@@ -202,10 +199,10 @@ func ExecuteTracker(db *db.DbService, devMode *bool, trackOutputDir string, trac
 		return
 	}
 	fmt.Println(syncResult)
-
-	if len(syncResult.TracksToDownload) > 0 {
-		downloader.DownloadTracks(ctx, &syncResult.TracksToDownload, trackOutputDir)
+	for _, v := range syncResult.TracksToDownload {
+		tracksToDownload <- v
 	}
+
 }
 
 func ValidateEnvs(required []string) error {
