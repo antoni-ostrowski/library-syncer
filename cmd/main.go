@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,7 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 )
 
-var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI", "Unreleased", parser.TrackerMapping{
+var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI", []string{"Unreleased", "Released"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name",
 	Notes:          "Notes\n(Join the Yeat Hub Discord!)",
@@ -32,7 +33,7 @@ var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASx
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griNjL59X5z6YFiFlY", "Unreleased!A2:J", parser.TrackerMapping{
+var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griNjL59X5z6YFiFlY", []string{"Unreleased!A2:J"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name",
 	Notes:          "Notes",
@@ -46,7 +47,7 @@ var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griN
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLNlWOnryo", "💿 Unreleased", parser.TrackerMapping{
+var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLNlWOnryo", []string{"💿 Unreleased"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name ",
 	Notes:          "Notes\n(Join the Discord Server!)",
@@ -60,7 +61,7 @@ var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLN
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6-BBSlYsAaF4", "💿 Unreleased", parser.TrackerMapping{
+var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6-BBSlYsAaF4", []string{"💿 Unreleased"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name",
 	Notes:          "Notes\nJoin our discord server here\nUse grails.cx/tracker to share our tracker!",
@@ -74,7 +75,7 @@ var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-var edwardTracker = parser.NewTracker("edward skeletrix", "1CnfVdc37A81ZX7lUs4L-J2JfqaW2z3pbkR2W6dRuFS0", "💿 Unreleased", parser.TrackerMapping{
+var edwardTracker = parser.NewTracker("edward skeletrix", "1CnfVdc37A81ZX7lUs4L-J2JfqaW2z3pbkR2W6dRuFS0", []string{"💿 Unreleased"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name\n(Check out the ArtistGrid Website!)",
 	Notes:          "Notes\n(Join the Edward Hub Discord!)",
@@ -118,7 +119,8 @@ func main() {
 	flag.Parse()
 	var trackOutputDir = os.Getenv("SONGS_PATH")
 
-	toCreate := []string{trackOutputDir, os.Getenv("SECRETS_PATH")}
+	clearSheetsDir(os.Getenv("SHEETS_PATH"))
+	toCreate := []string{trackOutputDir, os.Getenv("SECRETS_PATH"), os.Getenv("SHEETS_PATH")}
 
 	for _, v := range toCreate {
 		if err := os.MkdirAll(v, 0755); err != nil {
@@ -155,9 +157,9 @@ func main() {
 			fmt.Printf("---executing the main loop... \n")
 
 			ctx := context.Background()
-			downloader.DownloadTracks(ctx, *devMode, tracksToDownload, trackOutputDir)
+			downloader.DownloadTracks(ctx, *devMode, tracksToDownload)
 			for _, v := range toPerform {
-				ExecuteTracker(ctx, db, devMode, trackOutputDir, v, tracksToDownload)
+				ExecuteTracker(ctx, db, v, tracksToDownload)
 			}
 
 			if *devMode {
@@ -177,30 +179,32 @@ func main() {
 
 }
 
-func ExecuteTracker(ctx context.Context, db *db.DbService, devMode *bool, trackOutputDir string, tracker parser.Tracker, tracksToDownload chan<- parser.Track) {
+func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracker, tracksToDownload chan<- parser.Track) {
 	fmt.Printf("running for %v\n", tracker.Artist)
-	csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.SpreadsheetID, tracker.ReadRange)
-	if err != nil {
-		fmt.Printf("failed to download source csv: %v\n", err)
-		return
-	}
-	fmt.Printf("csv at %v\n", csvPath)
+	for _, readRange := range tracker.ReadRange {
+		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.SpreadsheetID, readRange)
+		if err != nil {
+			fmt.Printf("failed to download source csv: %v\n", err)
+			return
+		}
+		fmt.Printf("csv at %v\n", csvPath)
 
-	sourceTracks, err := parser.Parse(csvPath, trackOutputDir, tracker)
-	if err != nil {
-		fmt.Printf("failed to parse source csv: %v\n", err)
-		return
-	}
-	fmt.Printf("%v source tracks found\n", len(sourceTracks))
+		sourceTracks, err := parser.Parse(csvPath, tracker)
+		if err != nil {
+			fmt.Printf("failed to parse source csv: %v\n", err)
+			return
+		}
+		fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-	syncResult, err := db.SyncTracks(ctx, &sourceTracks, tracker)
-	if err != nil {
-		fmt.Printf("failed to sync tracks to db: %v\n", err)
-		return
-	}
-	fmt.Println(syncResult)
-	for _, v := range syncResult.TracksToDownload {
-		tracksToDownload <- v
+		syncResult, err := db.SyncTracks(ctx, &sourceTracks, tracker)
+		if err != nil {
+			fmt.Printf("failed to sync tracks to db: %v\n", err)
+			return
+		}
+		fmt.Println(syncResult)
+		for _, v := range syncResult.TracksToDownload {
+			tracksToDownload <- v
+		}
 	}
 
 }
@@ -236,6 +240,18 @@ func loadEnv(filepath string) {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
 			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+}
+func clearSheetsDir(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, e := range entries {
+		path := filepath.Join(dir, e.Name())
+		if err := os.RemoveAll(path); err != nil {
+			fmt.Printf("failed to remove %s: %v", path, err)
 		}
 	}
 }

@@ -34,7 +34,8 @@ const (
 	Reset   = "\033[0m"
 )
 
-func DownloadTracks(ctx context.Context, devMode bool, tracksToDownload <-chan parser.Track, outputDir string) {
+func DownloadTracks(ctx context.Context, devMode bool, tracksToDownload <-chan parser.Track) {
+	var outputDir = os.Getenv("SONGS_PATH")
 	fmt.Printf("---downloading tracks tracks... \n")
 	colors := []string{Red, Green, Yellow, Blue, Magenta, Cyan}
 

@@ -30,10 +30,10 @@ type Tracker struct {
 	Artist        string
 	Mapping       TrackerMapping
 	SpreadsheetID string
-	ReadRange     string
+	ReadRange     []string
 }
 
-func NewTracker(artist string, spreadsheetID string, readRange string, mapping TrackerMapping) Tracker {
+func NewTracker(artist string, spreadsheetID string, readRange []string, mapping TrackerMapping) Tracker {
 	return Tracker{
 		Artist:        artist,
 		ReadRange:     readRange,
@@ -56,7 +56,8 @@ type TrackerMapping struct {
 	OGFileLeakDate string
 }
 
-func Parse(csvPath, trackOutputDir string, tracker Tracker) ([]Track, error) {
+func Parse(csvPath string, tracker Tracker) ([]Track, error) {
+	var trackOutputDir = os.Getenv("SONGS_PATH")
 	f, err := os.Open(csvPath)
 	if err != nil {
 		return nil, err
