@@ -2,73 +2,126 @@ package parser
 
 import (
 	"encoding/csv"
-	"fmt"
 	"io"
 	"os"
 	"path"
 	"slices"
 	"strings"
-
-	"github.com/gocarina/gocsv"
 )
 
 type Track struct {
-	Era            string `csv:"Era"`
-	Name           string `csv:"Name"`
-	Notes          string `csv:"Notes\n(Join the Yeat Hub Discord!)"`
-	FileDate       string `csv:"File Date"`
-	Type           string `csv:"Type"`
-	AvailableLen   string `csv:"Available Length"`
-	Quality        string `csv:"Quality"`
-	Links          string `csv:"Link(s)"`
-	FirstPreview   string `csv:"First Preview"`
-	LeakDate       string `csv:"Leak Date"`
-	OGFileLeakDate string `csv:"OG File Leak Date"`
+	Artist         string
+	Era            string
+	Name           string
+	Notes          string
+	FileDate       string
+	Type           string
+	AvailableLen   string
+	Quality        string
+	Links          string
+	FirstPreview   string
+	LeakDate       string
+	OGFileLeakDate string
 	RealLinks      []string
 	OutputFilePath string
 }
 
-// fixes something with trailing commas. changes behaviour of encoding/csv in whole process
-func init() {
-	gocsv.SetCSVReader(func(in io.Reader) gocsv.CSVReader {
-		r := csv.NewReader(in)
-		r.FieldsPerRecord = -1
-		return r
-	})
+type Tracker struct {
+	Artist        string
+	Mapping       TrackerMapping
+	SpreadsheetID string
+	ReadRange     string
 }
 
-func Parse(csvPath string, trackOutputDir string) ([]Track, error) {
-	fmt.Printf("---parsing source csv file... \n")
-	tracksFile, err := os.OpenFile(csvPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+func NewTracker(artist string, spreadsheetID string, readRange string, mapping TrackerMapping) Tracker {
+	return Tracker{
+		Artist:        artist,
+		ReadRange:     readRange,
+		SpreadsheetID: spreadsheetID,
+		Mapping:       mapping,
+	}
+}
+
+type TrackerMapping struct {
+	Era            string
+	Name           string
+	Notes          string
+	FileDate       string
+	Type           string
+	AvailableLen   string
+	Quality        string
+	Links          string
+	FirstPreview   string
+	LeakDate       string
+	OGFileLeakDate string
+}
+
+func Parse(csvPath, trackOutputDir string, tracker Tracker) ([]Track, error) {
+	f, err := os.Open(csvPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file")
+		return nil, err
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	r.FieldsPerRecord = -1
+
+	headers, err := r.Read()
+	if err != nil {
+		return nil, err
 	}
 
-	fmt.Println("opened csv file")
-
-	defer tracksFile.Close()
-
-	allRows := []Track{}
-
-	if err := gocsv.UnmarshalFile(tracksFile, &allRows); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal: %v", err)
+	headerIdx := map[string]int{}
+	// map each column to int
+	for i, h := range headers {
+		headerIdx[h] = i
 	}
 
-	var cleanedTracks []Track
-	for i := range allRows {
-		track := &allRows[i]
-		links := getTracksLinks(*track)
+	var tracks []Track
+	for {
+		row, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		get := func(col string) string {
+			// get the index of column, retrieve data from row with that index
+			if i, ok := headerIdx[col]; ok && i < len(row) {
+				return row[i]
+			}
+			return ""
+		}
+
+		track := Track{
+			Artist:         tracker.Artist,
+			Name:           get(tracker.Mapping.Name),
+			Links:          get(tracker.Mapping.Links),
+			Era:            get(tracker.Mapping.Era),
+			Notes:          get(tracker.Mapping.Notes),
+			FileDate:       get(tracker.Mapping.FileDate),
+			Type:           get(tracker.Mapping.Type),
+			AvailableLen:   get(tracker.Mapping.AvailableLen),
+			Quality:        get(tracker.Mapping.Quality),
+			FirstPreview:   get(tracker.Mapping.FirstPreview),
+			LeakDate:       get(tracker.Mapping.LeakDate),
+			OGFileLeakDate: get(tracker.Mapping.OGFileLeakDate),
+		}
+
+		links := getTracksLinks(track)
 		if len(links) == 0 {
 			continue
 		}
 		track.Name = strings.Join(strings.Fields(track.Name), " ")
 		track.OutputFilePath = path.Join(trackOutputDir, track.Name)
 		track.RealLinks = links
-		cleanedTracks = append(cleanedTracks, *track)
+
+		tracks = append(tracks, track)
 	}
 
-	return cleanedTracks, nil
-
+	return tracks, nil
 }
 
 func getTracksLinks(track Track) []string {

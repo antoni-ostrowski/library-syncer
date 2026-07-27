@@ -18,6 +18,76 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 )
 
+var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI", "Unreleased", parser.TrackerMapping{
+	Era:            "Era",
+	Name:           "Name",
+	Notes:          "Notes\n(Join the Yeat Hub Discord!)",
+	FileDate:       "File Date",
+	Type:           "Type",
+	AvailableLen:   "Available Length",
+	Quality:        "Quality",
+	Links:          "Link(s)",
+	FirstPreview:   "First Preview",
+	LeakDate:       "Leak Date",
+	OGFileLeakDate: "OG File Leak Date",
+})
+
+var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griNjL59X5z6YFiFlY", "Unreleased!A2:J", parser.TrackerMapping{
+	Era:            "Era",
+	Name:           "Name",
+	Notes:          "Notes",
+	FileDate:       "File Date",
+	Type:           "Type",
+	AvailableLen:   "Track Length",
+	Quality:        "Quality",
+	Links:          "Link(s)",
+	FirstPreview:   "First Preview",
+	LeakDate:       "Leak Date",
+	OGFileLeakDate: "OG File Leak Date",
+})
+
+var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLNlWOnryo", "💿 Unreleased", parser.TrackerMapping{
+	Era:            "Era",
+	Name:           "Name ",
+	Notes:          "Notes\n(Join the Discord Server!)",
+	FileDate:       "File Date",
+	Type:           "Type",
+	AvailableLen:   "Track Length",
+	Quality:        "Quality",
+	Links:          "Links",
+	FirstPreview:   "First Preview",
+	LeakDate:       "Leak Date",
+	OGFileLeakDate: "OG File Leak Date",
+})
+
+var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6-BBSlYsAaF4", "💿 Unreleased", parser.TrackerMapping{
+	Era:            "Era",
+	Name:           "Name",
+	Notes:          "Notes\nJoin our discord server here\nUse grails.cx/tracker to share our tracker!",
+	FileDate:       "File Date",
+	Type:           "Type",
+	AvailableLen:   "Track Length",
+	Quality:        "Quality",
+	Links:          "Link(s)",
+	FirstPreview:   "First Preview",
+	LeakDate:       "Leak Date",
+	OGFileLeakDate: "OG File Leak Date",
+})
+
+var edwardTracker = parser.NewTracker("edward skeletrix", "1CnfVdc37A81ZX7lUs4L-J2JfqaW2z3pbkR2W6dRuFS0", "💿 Unreleased", parser.TrackerMapping{
+	Era:            "Era",
+	Name:           "Name\n(Check out the ArtistGrid Website!)",
+	Notes:          "Notes\n(Join the Edward Hub Discord!)",
+	FileDate:       "File Date",
+	Type:           "Type",
+	AvailableLen:   "Track Length",
+	Quality:        "Quality",
+	Links:          "Link(s)",
+	FirstPreview:   "First Preview",
+	LeakDate:       "Leak Date",
+	OGFileLeakDate: "OG File Leak Date",
+})
+
 func main() {
 
 	loadEnv(".env.local")
@@ -70,52 +140,20 @@ func main() {
 
 	db := db.NewDbService(dbConn)
 
-	// first run to let the auth flow (pasting code to stdin)
-	_, err = srccsv.DownloadSourceCsv(context.Background())
-	if err != nil {
-		fmt.Printf("failed to download source csv: %v\n", err)
-		if *devMode {
-			return
-		}
-		return
+	toPerform := []parser.Tracker{
+		yeatTracker,
+		masonTracker,
+		uziTracker,
+		cartiTracker,
+		edwardTracker,
 	}
 
 	go func() {
 		for {
 			fmt.Printf("---executing the main loop... \n")
-			ctx := context.WithValue(context.Background(), "devMode", *devMode)
-			csvPath, err := srccsv.DownloadSourceCsv(ctx)
-			if err != nil {
-				fmt.Printf("failed to download source csv: %v\n", err)
-				if *devMode {
-					break
-				}
-				continue
-			}
-			fmt.Printf("csv at %v\n", csvPath)
 
-			sourceTracks, err := parser.Parse(csvPath, trackOutputDir)
-			if err != nil {
-				fmt.Printf("failed to parse source csv: %v\n", err)
-				if *devMode {
-					break
-				}
-				continue
-			}
-			fmt.Printf("%v source tracks found\n", len(sourceTracks))
-
-			syncResult, err := db.SyncTracks(ctx, &sourceTracks)
-			if err != nil {
-				fmt.Printf("failed to sync tracks to db: %v\n", err)
-				if *devMode {
-					break
-				}
-				continue
-			}
-			fmt.Println(syncResult)
-
-			if len(syncResult.TracksToDownload) > 0 {
-				downloader.DownloadTracks(ctx, &syncResult.TracksToDownload, trackOutputDir)
+			for _, v := range toPerform {
+				ExecuteTracker(db, devMode, trackOutputDir, v)
 			}
 
 			if *devMode {
@@ -133,6 +171,36 @@ func main() {
 	}
 
 }
+
+func ExecuteTracker(db *db.DbService, devMode *bool, trackOutputDir string, tracker parser.Tracker) {
+	fmt.Printf("running for %v\n", tracker.Artist)
+	ctx := context.WithValue(context.Background(), "devMode", *devMode)
+	csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.SpreadsheetID, tracker.ReadRange)
+	if err != nil {
+		fmt.Printf("failed to download source csv: %v\n", err)
+		return
+	}
+	fmt.Printf("csv at %v\n", csvPath)
+
+	sourceTracks, err := parser.Parse(csvPath, trackOutputDir, tracker)
+	if err != nil {
+		fmt.Printf("failed to parse source csv: %v\n", err)
+		return
+	}
+	fmt.Printf("%v source tracks found\n", len(sourceTracks))
+
+	syncResult, err := db.SyncTracks(ctx, &sourceTracks, tracker)
+	if err != nil {
+		fmt.Printf("failed to sync tracks to db: %v\n", err)
+		return
+	}
+	fmt.Println(syncResult)
+
+	if len(syncResult.TracksToDownload) > 0 {
+		downloader.DownloadTracks(ctx, &syncResult.TracksToDownload, trackOutputDir)
+	}
+}
+
 func ValidateEnvs(required []string) error {
 	var missing []string
 

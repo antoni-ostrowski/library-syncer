@@ -29,7 +29,7 @@ func (s SyncResult) String() string {
 	return fmt.Sprintf("inserted or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
 }
 
-func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track) (SyncResult, error) {
+func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track, tracker parser.Tracker) (SyncResult, error) {
 	fmt.Printf("---syncing source tracks to database... \n")
 
 	tx, err := d.db.BeginTx(ctx, nil)
@@ -51,13 +51,13 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 		}
 
 		upsertSQL := `
-			INSERT INTO tracks (id, metadata)
-			VALUES (?, ?)
-			ON CONFLICT(id) DO UPDATE SET metadata = EXCLUDED.metadata
+			INSERT INTO tracks (id, tracker_id, metadata)
+			VALUES (?, ?, ?)
+			ON CONFLICT(id, tracker_id) DO UPDATE SET metadata = EXCLUDED.metadata
 			WHERE tracks.metadata <> EXCLUDED.metadata;
 		`
 
-		if _, err := tx.ExecContext(ctx, upsertSQL, hashId, jsonStr); err != nil {
+		if _, err := tx.ExecContext(ctx, upsertSQL, hashId, jsonStr, tracker.SpreadsheetID); err != nil {
 			return SyncResult{}, err
 		}
 
@@ -75,7 +75,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 		freshIds[hashId] = struct{}{}
 	}
 
-	rows, err := tx.QueryContext(ctx, "SELECT id FROM tracks;")
+	rows, err := tx.QueryContext(ctx, "SELECT id FROM tracks WHERE tracker_id = ?;", tracker.SpreadsheetID)
 	if err != nil {
 		return SyncResult{}, err
 	}
@@ -87,7 +87,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 			return SyncResult{}, err
 		}
 		if _, exists := freshIds[dbId]; !exists {
-			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?;", dbId); err != nil {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ? AND tracker_id = ?;", dbId, tracker.SpreadsheetID); err != nil {
 				return SyncResult{}, err
 			}
 			result.DeletionsCount++

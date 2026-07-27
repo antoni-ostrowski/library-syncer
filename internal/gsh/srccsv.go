@@ -20,13 +20,8 @@ import (
 
 var tokenPath = path.Join(os.Getenv("SECRETS_PATH"), "token.json")
 
-const (
-	spreadsheetID = "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI"
-	readRange     = "Unreleased"
-	outputPath    = "sheet.csv"
-)
-
-func DownloadSourceCsv(ctx context.Context) (string, error) {
+func DownloadSourceCsv(ctx context.Context, spreadsheetID string, readRange string) (string, error) {
+	outputPath := spreadsheetID + readRange
 	fmt.Printf("---downloading source csv file... \n")
 	credPath := path.Join(os.Getenv("SECRETS_PATH"), "credentials.json")
 	b, err := os.ReadFile(credPath)
