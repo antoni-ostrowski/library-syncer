@@ -4,27 +4,10 @@ import (
 	"encoding/csv"
 	"io"
 	"os"
-	"path"
-	"slices"
 	"strings"
-)
 
-type Track struct {
-	Artist         string
-	Era            string
-	Name           string
-	Notes          string
-	FileDate       string
-	Type           string
-	AvailableLen   string
-	Quality        string
-	Links          string
-	FirstPreview   string
-	LeakDate       string
-	OGFileLeakDate string
-	RealLinks      []string
-	OutputFilePath string
-}
+	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
+)
 
 type Tracker struct {
 	Artist        string
@@ -56,8 +39,7 @@ type TrackerMapping struct {
 	OGFileLeakDate string
 }
 
-func Parse(csvPath string, tracker Tracker) ([]Track, error) {
-	var trackOutputDir = os.Getenv("SONGS_PATH")
+func Parse(csvPath string, tracker Tracker) ([]downloader.Downloadable, error) {
 	f, err := os.Open(csvPath)
 	if err != nil {
 		return nil, err
@@ -78,7 +60,7 @@ func Parse(csvPath string, tracker Tracker) ([]Track, error) {
 		headerIdx[h] = i
 	}
 
-	var tracks []Track
+	var downloadables []downloader.Downloadable
 	for {
 		row, err := r.Read()
 		if err == io.EOF {
@@ -96,7 +78,7 @@ func Parse(csvPath string, tracker Tracker) ([]Track, error) {
 			return ""
 		}
 
-		track := Track{
+		track := downloader.Track{
 			Artist:         tracker.Artist,
 			Name:           get(tracker.Mapping.Name),
 			Links:          get(tracker.Mapping.Links),
@@ -111,42 +93,39 @@ func Parse(csvPath string, tracker Tracker) ([]Track, error) {
 			OGFileLeakDate: get(tracker.Mapping.OGFileLeakDate),
 		}
 
-		links := getTracksLinks(track)
-		if len(links) == 0 {
-			continue
-		}
 		track.Name = strings.Join(strings.Fields(track.Name), " ")
-		track.OutputFilePath = path.Join(trackOutputDir, track.Name)
-		track.RealLinks = links
 
-		tracks = append(tracks, track)
+		linksAr := strings.Fields(track.Links)
+		for _, link := range linksAr {
+			if strings.Contains(link, "pillows.su") {
+				a := &downloader.DownloadableTrack{Track: track, Url: createPillowcaseLink(link), Source: downloader.SourcePillowcase}
+				downloadables = append(downloadables, a)
+				continue
+			}
+
+			if strings.Contains(link, "soundcloud.com") {
+				a := &downloader.DownloadableTrack{Track: track, Url: link, Source: downloader.SourceSc}
+				downloadables = append(downloadables, a)
+				continue
+			}
+
+		}
+
 	}
 
-	return tracks, nil
+	return downloadables, nil
 }
 
-func getTracksLinks(track Track) []string {
-	if strings.EqualFold(strings.TrimSpace(track.Links), "Source Needed") {
-		return []string{}
+func createPillowcaseLink(link string) string {
+	const baseApiUrl = "https://api.pillows.su"
+	const downloadEndpoint = "/api/download/"
+	var trackId string
+	if len(link) >= 32 {
+		trackId = link[len(link)-32:]
+	} else {
+		return ""
 	}
 
-	links := strings.Fields(track.Links)
-	links = slices.DeleteFunc(links, func(s string) bool {
-		lowerS := strings.ToLower(strings.TrimSpace(s))
-
-		// 1. If it's NOT from pillows.su, delete it.
-		if !strings.Contains(lowerS, "pillows.su") {
-			return true
-		}
-
-		// 2. If it explicitly ends in .jpg, delete it.
-		if strings.HasSuffix(lowerS, ".jpg") {
-			return true
-		}
-
-		// Otherwise, keep it (these are your /api/download/ID links)
-		return false
-	})
-
-	return links
+	downloadLink := baseApiUrl + downloadEndpoint + trackId
+	return downloadLink
 }

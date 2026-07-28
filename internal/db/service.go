@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
 )
 
 type DbService struct {
@@ -22,14 +22,14 @@ func NewDbService(db *sql.DB) *DbService {
 type SyncResult struct {
 	InsertedOrUpdated int
 	DeletionsCount    int
-	TracksToDownload  []parser.Track
+	TracksToDownload  []downloader.Downloadable
 }
 
 func (s SyncResult) String() string {
 	return fmt.Sprintf("inserted or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
 }
 
-func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track, tracker parser.Tracker) (SyncResult, error) {
+func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.Downloadable, trackerId string) (SyncResult, error) {
 	fmt.Printf("---syncing source tracks to database... \n")
 
 	tx, err := d.db.BeginTx(ctx, nil)
@@ -57,7 +57,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 			WHERE tracks.metadata <> EXCLUDED.metadata;
 		`
 
-		if _, err := tx.ExecContext(ctx, upsertSQL, hashId, jsonStr, tracker.SpreadsheetID); err != nil {
+		if _, err := tx.ExecContext(ctx, upsertSQL, hashId, trackerId, jsonStr); err != nil {
 			return SyncResult{}, err
 		}
 
@@ -75,7 +75,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 		freshIds[hashId] = struct{}{}
 	}
 
-	rows, err := tx.QueryContext(ctx, "SELECT id FROM tracks WHERE tracker_id = ?;", tracker.SpreadsheetID)
+	rows, err := tx.QueryContext(ctx, "SELECT id FROM tracks WHERE tracker_id = ?;", trackerId)
 	if err != nil {
 		return SyncResult{}, err
 	}
@@ -87,7 +87,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 			return SyncResult{}, err
 		}
 		if _, exists := freshIds[dbId]; !exists {
-			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ? AND tracker_id = ?;", dbId, tracker.SpreadsheetID); err != nil {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ? AND tracker_id = ?;", dbId, trackerId); err != nil {
 				return SyncResult{}, err
 			}
 			result.DeletionsCount++
@@ -97,7 +97,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]parser.Track
 	return result, tx.Commit()
 }
 
-func prepareTrack(track *parser.Track) (string, string, error) {
+func prepareTrack(track *downloader.Downloadable) (string, string, error) {
 	jsonBytes, err := json.Marshal(track)
 	if err != nil {
 		return "", "", err

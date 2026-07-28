@@ -13,16 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 	"go.senan.xyz/taglib"
 )
-
-const baseApiUrl = "https://api.pillows.su"
-const downloadEndpoint = "/api/download/"
-
-var baseCoverPath = os.Getenv("ASSETS_PATH")
-
-type DebugLogFunc func(format string, a ...any)
 
 const (
 	Red     = "\033[31m"
@@ -34,74 +26,175 @@ const (
 	Reset   = "\033[0m"
 )
 
-func DownloadTracks(ctx context.Context, devMode bool, tracksToDownload <-chan parser.Track) {
+var baseCoverPath = os.Getenv("ASSETS_PATH")
+
+type DebugLogFunc func(format string, a ...any)
+
+type Track struct {
+	Artist         string
+	Era            string
+	Name           string
+	Notes          string
+	FileDate       string
+	Type           string
+	AvailableLen   string
+	Quality        string
+	Links          string
+	FirstPreview   string
+	LeakDate       string
+	OGFileLeakDate string
+}
+
+type Source int
+
+const (
+	SourcePillowcase = iota
+	SourceSc
+)
+
+type Downloadable interface {
+	Download(int) error
+}
+
+type DownloadableTrack struct {
+	Track  Track
+	Url    string
+	Source Source
+}
+
+func (d *DownloadableTrack) Download(workerId int) error {
+	switch d.Source {
+	case SourcePillowcase:
+		return d.downloadPillowcase(workerId)
+	case SourceSc:
+		return d.downloadSc(workerId)
+	default:
+		return fmt.Errorf("unkown source")
+	}
+}
+
+func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
+	link := d.Url
+	t := d.Track
+
 	var outputDir = os.Getenv("SONGS_PATH")
-	fmt.Printf("---downloading tracks tracks... \n")
 	colors := []string{Red, Green, Yellow, Blue, Magenta, Cyan}
 
-	workerCount := getWorkerCount()
+	color := colors[workerId%len(colors)]
+	debugLog := func(format string, a ...any) {
+		fmt.Printf(color+"[WORKER %v] "+format+Reset, append([]any{workerId}, a...)...)
+	}
 
+	debugLog("processing %v \n", t.Name)
+	tId := getTrackId(link)
+	matches, err := filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
+	if err == nil && len(matches) > 0 {
+		debugLog("File %s already exists, skipping...\n", t.Name)
+		return err
+	}
+
+	if len(link) == 0 {
+		debugLog("No download link found\n")
+		return nil
+	}
+
+	debugLog("attempting to download %v \n", link)
+
+	finalName, err := downloadFile(link, t, outputDir, debugLog)
+	if err != nil {
+		debugLog("Failed to download file %v \n", err)
+		return err
+	}
+
+	err = taglib.WriteTags(finalName, map[string][]string{
+		taglib.Album:     {t.Era},
+		taglib.Title:     {t.Name},
+		taglib.Artist:    {t.Artist},
+		"Notes":          {t.Notes},
+		"FileDate":       {t.FileDate},
+		"AvailableLen":   {t.AvailableLen},
+		"Quality":        {t.Quality},
+		"FirstPreview":   {t.FirstPreview},
+		"LeakDate":       {t.LeakDate},
+		"OGFileLeakDate": {t.OGFileLeakDate},
+	}, 0)
+
+	if err != nil {
+		debugLog("Failed to write metadata %v \n", err)
+		return err
+	}
+
+	imageBytes := getImageForTrack(t, baseCoverPath)
+
+	err = taglib.WriteImage(finalName, imageBytes)
+
+	if err != nil {
+		debugLog("Failed to embeed image %v \n", err)
+		return err
+	}
+
+	debugLog("successfully downloaded %v \n", t.Name)
+
+	return nil
+
+}
+
+func (d *DownloadableTrack) downloadSc(workerId int) error {
+	t := d.Track
+	link := d.Url
+
+	var outputDir = os.Getenv("SONGS_PATH")
+	colors := []string{Red, Green, Yellow, Blue, Magenta, Cyan}
+
+	color := colors[workerId%len(colors)]
+	debugLog := func(format string, a ...any) {
+		fmt.Printf(color+"[WORKER %v] "+format+Reset, append([]any{workerId}, a...)...)
+	}
+
+	debugLog("processing %v \n", t.Name)
+	tId := getTrackSlug(link)
+	matches, err := filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
+	if err == nil && len(matches) > 0 {
+		debugLog("File %s already exists, skipping...\n", t.Name)
+		return nil
+	}
+
+	if len(link) == 0 {
+		debugLog("No download link found\n")
+		return nil
+	}
+
+	debugLog("attempting to download %v \n", link)
+
+	outputTemplate := filepath.Join(outputDir, t.Name+tId+".%(ext)s")
+	cmd := exec.Command(
+		"yt-dlp",
+		"-f", "hls_aac_160k/http_mp3_1_0/bestaudio",
+		"--embed-thumbnail",
+		"--embed-metadata",
+		"-o", outputTemplate,
+		link,
+	)
+
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println("yt-dlp failed:", err)
+	}
+
+	debugLog("successfully downloaded %v \n", t.Name)
+
+	return nil
+
+}
+
+func DownloadTracks(ctx context.Context, devMode bool, tracksToDownload <-chan Downloadable) {
+	workerCount := GetWorkerCount()
 	for id := range workerCount {
-		go func() {
-			color := colors[id%len(colors)]
-			debugLog := func(format string, a ...any) {
-				fmt.Printf(color+"[WORKER %v] "+format+Reset, append([]any{id}, a...)...)
-			}
-
+		go func(id int) {
 			for track := range tracksToDownload {
-				debugLog("processing %v \n", track.Name)
-				for _, link := range track.RealLinks {
-					trackId := getTrackId(link)
-					matches, err := filepath.Glob(filepath.Join(outputDir, track.Name+trackId+".*"))
-					if err == nil && len(matches) > 0 {
-						debugLog("File %s already exists, skipping...\n", track.Name)
-						continue
-					}
-
-					downloadLink := createDownloadUrl(link)
-					if len(downloadLink) == 0 {
-						debugLog("No download link found\n")
-						continue
-					}
-
-					debugLog("attempting to download %v \n", downloadLink)
-
-					finalName, err := downloadFile(downloadLink, track, outputDir, debugLog)
-					if err != nil {
-						debugLog("Failed to download file %v \n", err)
-						continue
-					}
-
-					err = taglib.WriteTags(finalName, map[string][]string{
-						taglib.Album:     {track.Era},
-						taglib.Title:     {track.Name},
-						taglib.Artist:    {track.Artist},
-						"Notes":          {track.Notes},
-						"FileDate":       {track.FileDate},
-						"AvailableLen":   {track.AvailableLen},
-						"Quality":        {track.Quality},
-						"FirstPreview":   {track.FirstPreview},
-						"LeakDate":       {track.LeakDate},
-						"OGFileLeakDate": {track.OGFileLeakDate},
-					}, 0)
-
-					if err != nil {
-						debugLog("Failed to write metadata %v \n", err)
-						continue
-					}
-
-					imageBytes := getImageForTrack(track, baseCoverPath)
-
-					err = taglib.WriteImage(finalName, imageBytes)
-
-					if err != nil {
-						debugLog("Failed to embeed image %v \n", err)
-						continue
-					}
-
-					debugLog("successfully downloaded %v \n", track.Name)
-
-				}
+				track.Download(id)
 
 				if devMode {
 					return
@@ -109,26 +202,14 @@ func DownloadTracks(ctx context.Context, devMode bool, tracksToDownload <-chan p
 
 			}
 
-		}()
+		}(id)
 
 	}
 
 }
 
-func createDownloadUrl(link string) string {
-	var trackId string
-	if len(link) >= 32 {
-		trackId = link[len(link)-32:]
-	} else {
-		return ""
-	}
-
-	downloadLink := baseApiUrl + downloadEndpoint + trackId
-	return downloadLink
-}
-
-func downloadFile(downloadLink string, track parser.Track, outputDir string, debugLog DebugLogFunc) (string, error) {
-	resp, err := http.Get(downloadLink)
+func downloadFile(link string, track Track, outputDir string, debugLog DebugLogFunc) (string, error) {
+	resp, err := http.Get(link)
 	if err != nil {
 		return "", errors.New("Failed to request the download link %v")
 	}
@@ -152,7 +233,7 @@ func downloadFile(downloadLink string, track parser.Track, outputDir string, deb
 		ext = ".ogg"
 	}
 
-	trackId := getTrackId(downloadLink)
+	trackId := getTrackId(link)
 	finalName := path.Join(outputDir, track.Name+trackId+ext)
 
 	debugLog("Saving as: '%v'\n", finalName)
@@ -181,7 +262,7 @@ func downloadFile(downloadLink string, track parser.Track, outputDir string, deb
 
 }
 
-func getImageForTrack(track parser.Track, base string) []byte {
+func getImageForTrack(track Track, base string) []byte {
 	era := strings.TrimSpace(track.Era)
 	imagePath := path.Join(base, era+".jpg")
 
@@ -221,7 +302,7 @@ func processVideoToAudio(mp4Path string, debugLog DebugLogFunc) error {
 	debugLog("Success! File replaced with MP3.\n")
 	return nil
 }
-func getWorkerCount() int {
+func GetWorkerCount() int {
 	s := os.Getenv("WORKER_COUNT")
 	if s == "" {
 		return 4
@@ -240,4 +321,21 @@ func getTrackId(link string) string {
 		trackId = s[len(s)-32:]
 	}
 	return "---" + trackId
+}
+
+func getTrackSlug(link string) string {
+	const prefix = "soundcloud.com/"
+	idx := strings.Index(link, prefix)
+	if idx == -1 {
+		return ""
+	}
+
+	slug := link[idx+len(prefix):]
+	if q := strings.IndexAny(slug, "?#"); q != -1 {
+		slug = slug[:q]
+	}
+	slug = strings.TrimSuffix(slug, "/")
+	slug = strings.ReplaceAll(slug, "/", "-")
+
+	return "---" + slug
 }

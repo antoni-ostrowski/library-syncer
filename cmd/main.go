@@ -19,7 +19,7 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 )
 
-var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI", []string{"Unreleased", "Released"}, parser.TrackerMapping{
+var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI", []string{"Released", "Unreleased"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name",
 	Notes:          "Notes\n(Join the Yeat Hub Discord!)",
@@ -150,7 +150,7 @@ func main() {
 		edwardTracker,
 	}
 
-	tracksToDownload := make(chan parser.Track, 10000)
+	tracksToDownload := make(chan downloader.Downloadable, 10000)
 
 	go func() {
 		for {
@@ -179,7 +179,7 @@ func main() {
 
 }
 
-func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracker, tracksToDownload chan<- parser.Track) {
+func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracker, tracksToDownload chan<- downloader.Downloadable) {
 	fmt.Printf("running for %v\n", tracker.Artist)
 	for _, readRange := range tracker.ReadRange {
 		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.SpreadsheetID, readRange)
@@ -196,7 +196,8 @@ func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracke
 		}
 		fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-		syncResult, err := db.SyncTracks(ctx, &sourceTracks, tracker)
+		trackerId := tracker.SpreadsheetID + "#" + readRange
+		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerId)
 		if err != nil {
 			fmt.Printf("failed to sync tracks to db: %v\n", err)
 			return
