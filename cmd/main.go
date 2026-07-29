@@ -47,7 +47,7 @@ var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griN
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLNlWOnryo", []string{"💿 Unreleased"}, parser.TrackerMapping{
+var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLNlWOnryo", []string{"💿 Unreleased", "📻 Released"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name ",
 	Notes:          "Notes\n(Join the Discord Server!)",
@@ -61,7 +61,7 @@ var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLN
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6-BBSlYsAaF4", []string{"💿 Unreleased"}, parser.TrackerMapping{
+var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6-BBSlYsAaF4", []string{"💿 Unreleased", "📻 Released"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name",
 	Notes:          "Notes\nJoin our discord server here\nUse grails.cx/tracker to share our tracker!",
@@ -75,7 +75,7 @@ var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-var edwardTracker = parser.NewTracker("edward skeletrix", "1CnfVdc37A81ZX7lUs4L-J2JfqaW2z3pbkR2W6dRuFS0", []string{"💿 Unreleased"}, parser.TrackerMapping{
+var edwardTracker = parser.NewTracker("edward skeletrix", "1CnfVdc37A81ZX7lUs4L-J2JfqaW2z3pbkR2W6dRuFS0", []string{"💿 Unreleased", "📀 Released"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name\n(Check out the ArtistGrid Website!)",
 	Notes:          "Notes\n(Join the Edward Hub Discord!)",
