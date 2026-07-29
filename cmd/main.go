@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,8 +14,10 @@ import (
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
+	"github.com/antoni-ostrowski/library-syncer/internal/events"
 	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/web"
 )
 
 var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI", []string{"Released", "Unreleased"}, parser.TrackerMapping{
@@ -33,7 +34,6 @@ var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASx
 	OGFileLeakDate: "OG File Leak Date",
 })
 
-// ttrstrnsei
 var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griNjL59X5z6YFiFlY", []string{"Unreleased!A2:J", "Released"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name",
@@ -118,6 +118,10 @@ func main() {
 
 	devMode := flag.Bool("d", false, "dev mode (only download sample size + 1 loop iteration)")
 	flag.Parse()
+
+	eventCh := make(chan events.Event)
+	go web.StartHttpServer()
+
 	var trackOutputDir = os.Getenv("SONGS_PATH")
 
 	clearSheetsDir(os.Getenv("SHEETS_PATH"))
@@ -129,10 +133,6 @@ func main() {
 		}
 
 	}
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "hello")
-	})
 
 	fmt.Printf("dev mode %v\n", *devMode)
 
@@ -172,11 +172,6 @@ func main() {
 		}
 
 	}()
-
-	if err := http.ListenAndServe(":3000", nil); err != nil {
-		close(tracksToDownload)
-		log.Fatalln("server error: ", err)
-	}
 
 }
 
