@@ -33,6 +33,7 @@ var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASx
 	OGFileLeakDate: "OG File Leak Date",
 })
 
+// ttrstrnsei
 var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griNjL59X5z6YFiFlY", []string{"Unreleased!A2:J", "Released"}, parser.TrackerMapping{
 	Era:            "Era",
 	Name:           "Name",
