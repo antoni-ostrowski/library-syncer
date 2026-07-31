@@ -10,18 +10,20 @@ import (
 )
 
 type Tracker struct {
-	Artist        string
-	Mapping       TrackerMapping
-	SpreadsheetID string
-	ReadRange     []string
+	Id         string
+	ReadRanges []string
+	Artist     string
+	Mapping    TrackerMapping
+	Status     string
 }
 
-func NewTracker(artist string, spreadsheetID string, readRange []string, mapping TrackerMapping) Tracker {
+func NewTracker(artist string, id string, readRange []string, mapping TrackerMapping, status string) Tracker {
 	return Tracker{
-		Artist:        artist,
-		ReadRange:     readRange,
-		SpreadsheetID: spreadsheetID,
-		Mapping:       mapping,
+		Artist:     artist,
+		ReadRanges: readRange,
+		Id:         id,
+		Mapping:    mapping,
+		Status:     status,
 	}
 }
 

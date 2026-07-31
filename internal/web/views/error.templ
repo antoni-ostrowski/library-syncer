@@ -1,0 +1,10 @@
+package views
+
+templ Error(mess string) {
+	<div class="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-400">
+		<div class="flex items-center gap-3">
+			<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-500/30 bg-red-500/20 text-sm font-bold">!</span>
+			<p class="text-sm font-medium">{ mess }</p>
+		</div>
+	</div>
+}

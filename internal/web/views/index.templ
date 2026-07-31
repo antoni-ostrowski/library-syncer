@@ -1,0 +1,61 @@
+package views
+
+import "github.com/antoni-ostrowski/library-syncer/internal/parser"
+
+type IndexModel struct {
+	Trackers  []parser.Tracker
+	IsRunning bool
+}
+
+templ Index(m IndexModel) {
+	<main class="mx-auto max-w-6xl px-6 py-10">
+		<header class="mb-10 flex items-end justify-between gap-6 border-b border-white/10 pb-6">
+			<div>
+				<h1 class="text-3xl">Library Syncer</h1>
+			</div>
+		</header>
+		<section class="mb-10">
+			<div class="mb-4 flex items-center justify-between w-full gap-3">
+				<div class="flex flex-row gap-3 justify-center items-center">
+					<span class="inline-block h-2 w-2 rounded-full bg-[var(--accent)]"></span>
+					<h2 class="font-display text-xl font-semibold text-white">Active trackers</h2>
+				</div>
+				<button class="btn-destructive" hx-post="/nuke-library">nuke library</button>
+				<div id="runner-state" hx-get="/runner-state" hx-trigger="load, runnerStateChanged from:body, every 2s">
+					@TriggerBtn(m.IsRunning)
+				</div>
+			</div>
+			<div hx-swap="innerHTML" hx-get="/tracker-list" hx-trigger="load, refreshList from:body, every 2s">
+				@TrackerList(m.Trackers, m.IsRunning)
+			</div>
+		</section>
+		<section>
+			<div class="mb-4 flex items-center gap-3">
+				<span class="inline-block h-2 w-2 rounded-full bg-[var(--destructive)]"></span>
+				<h2 class="font-display text-xl font-semibold text-white">Add tracker</h2>
+			</div>
+			@InsertTracker()
+		</section>
+	</main>
+}
+
+templ TriggerBtn(running bool) {
+	if running {
+		<span class="inline-flex items-center gap-2 text-sm font-medium text-white/60">
+			<span class="h-2 w-2 animate-pulse rounded-full bg-amber-400"></span>
+			running...
+		</span>
+	} else {
+		<button class="btn" hx-post="/run" hx-swap="none">
+			Trigger run
+		</button>
+	}
+}
+
+templ TrackerList(trackers []parser.Tracker, isRunning bool) {
+	<div id="tracker-list" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+		for _, v := range trackers {
+			@Tracker(v, isRunning)
+		}
+	</div>
+}

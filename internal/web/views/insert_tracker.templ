@@ -1,0 +1,68 @@
+package views
+
+type MappingField struct {
+	Name     string
+	Label    string
+	Required bool
+	Value    string
+}
+
+var MappingFields = []MappingField{
+	{Name: "era", Label: "Era", Required: true, Value: "Era"},
+	{Name: "name", Label: "Name", Required: true, Value: "Name"},
+	{Name: "notes", Label: "Notes", Required: false, Value: "Notes\n(Join the Yeat Hub Discord!)"},
+	{Name: "fileDate", Label: "File Date", Required: false, Value: "File Date"},
+	{Name: "type", Label: "Type", Required: false, Value: "Type"},
+	{Name: "availableLen", Label: "Available Length", Required: false, Value: "Available Length"},
+	{Name: "quality", Label: "Quality", Required: false, Value: "Quality"},
+	{Name: "links", Label: "Links", Required: true, Value: "Link(s)"},
+	{Name: "firstPreview", Label: "First Preview", Required: false, Value: "First Preview"},
+	{Name: "leakDate", Label: "Leak Date", Required: false, Value: "Leak Date"},
+	{Name: "ogFileLeakDate", Label: "OG File Leak Date", Required: false, Value: "OG File Leak Date"},
+}
+
+templ InsertTracker() {
+	<div class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
+		<form hx-post="/tracker" hx-target="#tracker-list" hx-on::after-request="this.reset()" hx-swap="beforebegin">
+			<div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+				<div class="md:col-span-2">
+					<label for="id">Spreadsheet Link</label>
+					<input
+						type="text"
+						id="id"
+						name="id"
+						required
+						value="https://docs.google.com/spreadsheets/d/1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI/edit?gid=1241081326#gid=1241081326"
+					/>
+				</div>
+				<div>
+					<label for="artist">Artist</label>
+					<input type="text" id="artist" name="artist" required value="yeat"/>
+				</div>
+				<div class="md:col-span-3">
+					<label for="readRanges">Read Ranges (one per line)</label>
+					<textarea id="readRanges" name="readRanges" required rows="3">{ "Unreleased\nReleased" }</textarea>
+				</div>
+			</div>
+			<fieldset class="mt-6">
+				<legend class="font-display mb-4 text-lg font-semibold text-white">Column Mapping</legend>
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					for _, field := range MappingFields {
+						<div>
+							<label for={ "mapping_" + field.Name }>
+								{ field.Label }
+								if field.Required {
+									<span class="ml-1 text-[var(--destructive)]">*</span>
+								}
+							</label>
+							<input type="text" id={ "mapping_" + field.Name } name={ "mapping_" + field.Name } value={ field.Value }/>
+						</div>
+					}
+				</div>
+			</fieldset>
+			<div class="mt-6">
+				<button type="submit" class="btn">Add Tracker</button>
+			</div>
+		</form>
+	</div>
+}

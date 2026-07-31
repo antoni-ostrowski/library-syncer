@@ -3,6 +3,7 @@ module github.com/antoni-ostrowski/library-syncer
 go 1.25.4
 
 require (
+	github.com/a-h/templ v0.3.1020
 	go.senan.xyz/taglib v0.13.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.289.0

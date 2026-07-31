@@ -1,6 +1,6 @@
 #!/bin/sh
 
 scripts/clean.sh &&
-scripts/dev.sh
+templ generate --watch --cmd="scripts/dev.sh"
 
 
