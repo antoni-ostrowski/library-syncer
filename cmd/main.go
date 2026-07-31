@@ -14,81 +14,10 @@ import (
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
-	"github.com/antoni-ostrowski/library-syncer/internal/events"
 	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 	"github.com/antoni-ostrowski/library-syncer/internal/web"
 )
-
-var yeatTracker = parser.NewTracker("yeat", "1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI", []string{"Released", "Unreleased"}, parser.TrackerMapping{
-	Era:            "Era",
-	Name:           "Name",
-	Notes:          "Notes\n(Join the Yeat Hub Discord!)",
-	FileDate:       "File Date",
-	Type:           "Type",
-	AvailableLen:   "Available Length",
-	Quality:        "Quality",
-	Links:          "Link(s)",
-	FirstPreview:   "First Preview",
-	LeakDate:       "Leak Date",
-	OGFileLeakDate: "OG File Leak Date",
-})
-
-var masonTracker = parser.NewTracker("osamason", "1qbJpawdwnw7IUkZ4FfU3oOF17griNjL59X5z6YFiFlY", []string{"Unreleased!A2:J", "Released"}, parser.TrackerMapping{
-	Era:            "Era",
-	Name:           "Name",
-	Notes:          "Notes",
-	FileDate:       "File Date",
-	Type:           "Type",
-	AvailableLen:   "Track Length",
-	Quality:        "Quality",
-	Links:          "Link(s)",
-	FirstPreview:   "First Preview",
-	LeakDate:       "Leak Date",
-	OGFileLeakDate: "OG File Leak Date",
-})
-
-var uziTracker = parser.NewTracker("uzi", "1zqqdIds1iwnx4lh29iF1IlraeuqfGhxH9qLNlWOnryo", []string{"💿 Unreleased", "📻 Released"}, parser.TrackerMapping{
-	Era:            "Era",
-	Name:           "Name ",
-	Notes:          "Notes\n(Join the Discord Server!)",
-	FileDate:       "File Date",
-	Type:           "Type",
-	AvailableLen:   "Track Length",
-	Quality:        "Quality",
-	Links:          "Links",
-	FirstPreview:   "First Preview",
-	LeakDate:       "Leak Date",
-	OGFileLeakDate: "OG File Leak Date",
-})
-
-var cartiTracker = parser.NewTracker("carti", "1Irtfvymu26CShYowLMMfD-rM0o9CJqE6-BBSlYsAaF4", []string{"💿 Unreleased", "📻 Released"}, parser.TrackerMapping{
-	Era:            "Era",
-	Name:           "Name",
-	Notes:          "Notes\nJoin our discord server here\nUse grails.cx/tracker to share our tracker!",
-	FileDate:       "File Date",
-	Type:           "Type",
-	AvailableLen:   "Track Length",
-	Quality:        "Quality",
-	Links:          "Link(s)",
-	FirstPreview:   "First Preview",
-	LeakDate:       "Leak Date",
-	OGFileLeakDate: "OG File Leak Date",
-})
-
-var edwardTracker = parser.NewTracker("edward skeletrix", "1CnfVdc37A81ZX7lUs4L-J2JfqaW2z3pbkR2W6dRuFS0", []string{"💿 Unreleased", "📀 Released"}, parser.TrackerMapping{
-	Era:            "Era",
-	Name:           "Name\n(Check out the ArtistGrid Website!)",
-	Notes:          "Notes\n(Join the Edward Hub Discord!)",
-	FileDate:       "File Date",
-	Type:           "Type",
-	AvailableLen:   "Track Length",
-	Quality:        "Quality",
-	Links:          "Link(s)",
-	FirstPreview:   "First Preview",
-	LeakDate:       "Leak Date",
-	OGFileLeakDate: "OG File Leak Date",
-})
 
 func main() {
 	loadEnv(".env.local")
@@ -119,8 +48,14 @@ func main() {
 	devMode := flag.Bool("d", false, "dev mode (only download sample size + 1 loop iteration)")
 	flag.Parse()
 
-	eventCh := make(chan events.Event)
-	go web.StartHttpServer()
+	dbConn, err := db.OpenDb()
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v\n", err.Error())
+	}
+
+	db := db.NewDbService(dbConn)
+
+	go web.StartHttpServer(db)
 
 	var trackOutputDir = os.Getenv("SONGS_PATH")
 
@@ -136,49 +71,46 @@ func main() {
 
 	fmt.Printf("dev mode %v\n", *devMode)
 
-	dbConn, err := db.OpenDb()
+	ctx := context.Background()
+	trackers, err := db.ListTrackers(ctx)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v\n", err.Error())
-	}
-
-	db := db.NewDbService(dbConn)
-
-	toPerform := []parser.Tracker{
-		yeatTracker,
-		masonTracker,
-		uziTracker,
-		cartiTracker,
-		edwardTracker,
+		fmt.Printf("%v", err)
+		os.Exit(1)
 	}
 
 	tracksToDownload := make(chan downloader.Downloadable, 10000)
 
-	go func() {
-		for {
-			fmt.Printf("---executing the main loop... \n")
+	for {
+		fmt.Printf("---executing the main loop... \n")
 
-			ctx := context.Background()
-			downloader.DownloadTracks(ctx, *devMode, tracksToDownload)
-			for _, v := range toPerform {
-				ExecuteTracker(ctx, db, v, tracksToDownload)
+		ctx := context.Background()
+		downloader.DownloadTracks(ctx, *devMode, tracksToDownload)
+		for _, v := range trackers {
+			tracker := v
+			tracker.Status = "syncing"
+			if err := db.UpsertTracker(ctx, tracker); err != nil {
+				log.Printf("failed to mark syncing: %v", err)
+				continue
 			}
 
-			if *devMode {
-				break
-			}
+			ExecuteTracker(ctx, db, v, tracksToDownload)
 
-			fmt.Printf("---sleeping... \n")
-			time.Sleep(time.Second * time.Duration(sleepSec))
+			tracker.Status = "synced"
+			if err := db.UpsertTracker(ctx, tracker); err != nil {
+				log.Printf("failed to mark final status: %v", err)
+			}
 		}
 
-	}()
+		fmt.Printf("---sleeping... \n")
+		time.Sleep(time.Second * time.Duration(sleepSec))
+	}
 
 }
 
 func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracker, tracksToDownload chan<- downloader.Downloadable) {
 	fmt.Printf("running for %v\n", tracker.Artist)
-	for _, readRange := range tracker.ReadRange {
-		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.SpreadsheetID, readRange)
+	for _, readRange := range tracker.ReadRanges {
+		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.Id, readRange)
 		if err != nil {
 			fmt.Printf("failed to download source csv: %v\n", err)
 			return
@@ -192,7 +124,7 @@ func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracke
 		}
 		fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-		trackerId := tracker.SpreadsheetID + "#" + readRange
+		trackerId := tracker.Id + "#" + readRange
 		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerId)
 		if err != nil {
 			fmt.Printf("failed to sync tracks to db: %v\n", err)

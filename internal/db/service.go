@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
+	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 )
 
 type DbService struct {
@@ -109,4 +110,67 @@ func prepareTrack(track *downloader.Downloadable) (string, string, error) {
 	// [:] to turn fixed size [32]byte (hash var) arr to slice []byte
 	hashId := hex.EncodeToString(hash[:])
 	return hashId, jsonString, nil
+}
+
+func (d *DbService) ListTrackers(ctx context.Context) ([]parser.Tracker, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT id, read_ranges, artist, mapping, status FROM trackers;")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var trackers []parser.Tracker
+	for rows.Next() {
+		var t parser.Tracker
+		var readRangesJSON string
+		var mappingJSON string
+		if err := rows.Scan(&t.Id, &readRangesJSON, &t.Artist, &mappingJSON, &t.Status); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(readRangesJSON), &t.ReadRanges); err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal([]byte(mappingJSON), &t.Mapping); err != nil {
+			return nil, err
+		}
+
+		trackers = append(trackers, t)
+	}
+
+	return trackers, rows.Err()
+
+}
+
+func (d *DbService) UpsertTracker(ctx context.Context, newTracker parser.Tracker) error {
+	readRangesJSON, err := json.Marshal(newTracker.ReadRanges)
+	if err != nil {
+		return err
+	}
+
+	mappingJSON, err := json.Marshal(newTracker.Mapping)
+	if err != nil {
+		return err
+	}
+
+	_, err = d.db.ExecContext(ctx, `
+		INSERT INTO trackers (id, read_ranges, artist, mapping, status)
+		VALUES (?,?,?,?,?)
+		ON CONFLICT(id) DO UPDATE SET
+		read_ranges = EXCLUDED.read_ranges,
+		artist = EXCLUDED.artist,
+		mapping = EXCLUDED.mapping,
+		status = EXCLUDED.status;
+		`,
+		newTracker.Id, readRangesJSON, newTracker.Artist, mappingJSON, newTracker.Status)
+
+	return err
+}
+
+func (d *DbService) DeleteTracker(ctx context.Context, trackerId string) error {
+	_, err := d.db.ExecContext(ctx, `DELETE FROM trackers WHERE id = ?;`, trackerId)
+	if err != nil {
+		return fmt.Errorf("failed to delete tracker: %v\n", err)
+	}
+	return nil
+
 }

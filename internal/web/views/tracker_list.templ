@@ -1,0 +1,15 @@
+package views
+
+import "github.com/antoni-ostrowski/library-syncer/internal/parser"
+
+type TrackerListModel struct {
+	Trackers []parser.Tracker
+}
+
+templ TrackerList(m TrackerListModel) {
+	<div id="tracker-list" class="border-black">
+		for _, v := range m.Trackers {
+			@Tracker(v)
+		}
+	</div>
+}

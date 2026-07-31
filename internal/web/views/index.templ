@@ -1,5 +1,17 @@
 package views
 
-templ Index() {
-	<h1>hi</h1>
+type IndexModel struct {
+	TrackerListModel TrackerListModel
+}
+
+templ Index(m IndexModel) {
+	<div>
+		this is index page
+		<div hx-swap="innerHTML" hx-get="/tracker-list" hx-trigger="every 2s">
+			@TrackerList(m.TrackerListModel)
+		</div>
+		<div>
+			@InsertTracker()
+		</div>
+	</div>
 }

@@ -1,0 +1,51 @@
+package views
+
+type MappingField struct {
+	Name     string
+	Label    string
+	Required bool
+	Value    string
+}
+
+var MappingFields = []MappingField{
+	{Name: "era", Label: "Era", Required: true, Value: "Era"},
+	{Name: "name", Label: "Name", Required: true, Value: "Name"},
+	{Name: "notes", Label: "Notes", Required: false, Value: "Notes\n(Join the Yeat Hub Discord!)"},
+	{Name: "fileDate", Label: "File Date", Required: false, Value: "File Date"},
+	{Name: "type", Label: "Type", Required: false, Value: "Type"},
+	{Name: "availableLen", Label: "Available Length", Required: false, Value: "Available Length"},
+	{Name: "quality", Label: "Quality", Required: false, Value: "Quality"},
+	{Name: "links", Label: "Links", Required: true, Value: "Link(s)"},
+	{Name: "firstPreview", Label: "First Preview", Required: false, Value: "First Preview"},
+	{Name: "leakDate", Label: "Leak Date", Required: false, Value: "Leak Date"},
+	{Name: "ogFileLeakDate", Label: "OG File Leak Date", Required: false, Value: "OG File Leak Date"},
+}
+
+templ InsertTracker() {
+	<div>
+		<form hx-post="/tracker" hx-target="#tracker-list" hx-on::after-request="this.reset()" hx-swap="beforebegin">
+			<div>
+				<label for="id">Spreadsheet ID</label>
+				<input type="text" id="id" name="id" required value="1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI"/>
+			</div>
+			<div>
+				<label for="artist">Artist</label>
+				<input type="text" id="artist" name="artist" required value="yeat"/>
+			</div>
+			<div>
+				<label for="readRanges">Read Ranges (one per line)</label>
+				<textarea id="readRanges" name="readRanges" required>{ "Unreleased\nReleased" }</textarea>
+			</div>
+			<fieldset>
+				<legend>Column Mapping</legend>
+				for _, field := range MappingFields {
+					<div>
+						<label for={ "mapping_" + field.Name }>{ field.Label }</label>
+						<input type="text" id={ "mapping_" + field.Name } name={ "mapping_" + field.Name } value={ field.Value }/>
+					</div>
+				}
+			</fieldset>
+			<button type="submit">Add Tracker</button>
+		</form>
+	</div>
+}
