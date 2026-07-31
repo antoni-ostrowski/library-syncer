@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -106,30 +107,11 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 		return err
 	}
 
-	err = taglib.WriteTags(finalName, map[string][]string{
-		taglib.Album:     {t.Era},
-		taglib.Title:     {t.Name},
-		taglib.Artist:    {t.Artist},
-		"Notes":          {t.Notes},
-		"FileDate":       {t.FileDate},
-		"AvailableLen":   {t.AvailableLen},
-		"Quality":        {t.Quality},
-		"FirstPreview":   {t.FirstPreview},
-		"LeakDate":       {t.LeakDate},
-		"OGFileLeakDate": {t.OGFileLeakDate},
-	}, 0)
-
+	err = writeTrackMetadata(finalName, t)
+	imageBytes := getImageForTrack(t, baseCoverPath)
+	err = taglib.WriteImage(finalName, imageBytes)
 	if err != nil {
 		debugLog("Failed to write metadata %v \n", err)
-		return err
-	}
-
-	imageBytes := getImageForTrack(t, baseCoverPath)
-
-	err = taglib.WriteImage(finalName, imageBytes)
-
-	if err != nil {
-		debugLog("Failed to embeed image %v \n", err)
 		return err
 	}
 
@@ -166,21 +148,63 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 
 	debugLog("attempting to download %v \n", link)
 
+	infoCmd := exec.Command("yt-dlp", "--dump-single-json", "--skip-download", link)
+	infoCmd.Stderr = os.Stderr
+	infoOut, err := infoCmd.Output()
+	if err != nil {
+		debugLog("Failed to fetch track info: %v\n", err)
+		return err
+	}
+	var info struct {
+		Thumbnail  string `json:"thumbnail"`
+		Thumbnails []any  `json:"thumbnails"`
+	}
+	if err := json.Unmarshal(infoOut, &info); err != nil {
+		debugLog("Failed to parse track info: %v\n", err)
+		return err
+	}
+	hasCover := info.Thumbnail != "" && len(info.Thumbnails) > 0
+
 	outputTemplate := filepath.Join(outputDir, t.Name+tId+".%(ext)s")
-	cmd := exec.Command(
-		"yt-dlp",
+	args := []string{
 		"-f", "hls_aac_160k/http_mp3_1_0/bestaudio",
-		"--embed-thumbnail",
 		"--embed-metadata",
 		"-o", outputTemplate,
-		link,
-	)
+	}
+	if hasCover {
+		args = append(args, "--embed-thumbnail")
+	}
+	args = append(args, link)
+	cmd := exec.Command("yt-dlp", args...)
 
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 
 	if err := cmd.Run(); err != nil {
 		fmt.Println("yt-dlp failed:", err)
+	}
+	matches, err = filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
+	if err != nil {
+		return err
+	}
+	if len(matches) == 0 {
+		return fmt.Errorf("no downloaded file found for %s", t.Name)
+	}
+	finalName := matches[0]
+
+	err = writeTrackMetadata(finalName, t)
+	if err != nil {
+		debugLog("Failed to write metadata %v \n", err)
+		return err
+	}
+
+	if !hasCover {
+		imageBytes := getImageForTrack(t, baseCoverPath)
+		err = taglib.WriteImage(finalName, imageBytes)
+		if err != nil {
+			debugLog("Failed to write cover image %v \n", err)
+			return err
+		}
 	}
 
 	debugLog("successfully downloaded %v \n", t.Name)
@@ -338,4 +362,21 @@ func getTrackSlug(link string) string {
 	slug = strings.ReplaceAll(slug, "/", "-")
 
 	return "---" + slug
+}
+
+func writeTrackMetadata(filepath string, t Track) error {
+	err := taglib.WriteTags(filepath, map[string][]string{
+		taglib.Album:     {t.Era},
+		taglib.Title:     {t.Name},
+		taglib.Artist:    {t.Artist},
+		"Notes":          {t.Notes},
+		"FileDate":       {t.FileDate},
+		"AvailableLen":   {t.AvailableLen},
+		"Quality":        {t.Quality},
+		"FirstPreview":   {t.FirstPreview},
+		"LeakDate":       {t.LeakDate},
+		"OGFileLeakDate": {t.OGFileLeakDate},
+	}, 0)
+
+	return err
 }
