@@ -12,11 +12,17 @@ templ Index(m IndexModel) {
 			</div>
 		</header>
 		<section class="mb-10">
-			<div class="mb-4 flex items-center gap-3">
-				<span class="inline-block h-2 w-2 rounded-full bg-[var(--accent)]"></span>
-				<h2 class="font-display text-xl font-semibold text-white">Active trackers</h2>
+			<div class="mb-4 flex items-center justify-between w-full gap-3">
+				<div class="flex flex-row gap-3 justify-center items-center">
+					<span class="inline-block h-2 w-2 rounded-full bg-[var(--accent)]"></span>
+					<h2 class="font-display text-xl font-semibold text-white">Active trackers</h2>
+				</div>
+				<button class="btn" hx-post="/run" hx-swap="none">
+					Trigger run
+					<span class="htmx-indicator">loading...</span>
+				</button>
 			</div>
-			<div hx-swap="innerHTML" hx-get="/tracker-list" hx-trigger="every 2s">
+			<div hx-swap="innerHTML" hx-get="/tracker-list" hx-trigger="load, refreshList from:body, every 2s">
 				@TrackerList(m.TrackerListModel)
 			</div>
 		</section>

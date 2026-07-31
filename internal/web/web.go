@@ -9,11 +9,11 @@ import (
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/runner"
 	"github.com/antoni-ostrowski/library-syncer/internal/web/views"
 )
 
-func StartHttpServer(db *db.DbService) {
-
+func StartHttpServer(db *db.DbService, runner *runner.Runner) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		trackers, err := db.ListTrackers(r.Context())
 		if err != nil {
@@ -29,6 +29,17 @@ func StartHttpServer(db *db.DbService) {
 		}
 
 		views.TrackerList(views.TrackerListModel{Trackers: trackers}).Render(r.Context(), w)
+	})
+
+	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		runner.Trigger()
+		w.Header().Set("HX-Trigger", "refreshList")
+		w.WriteHeader(http.StatusAccepted)
+
 	})
 
 	http.HandleFunc("/tracker", func(w http.ResponseWriter, r *http.Request) {

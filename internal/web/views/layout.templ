@@ -11,103 +11,127 @@ templ Base(children templ.Component) {
 			<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
 			<link rel="preconnect" href="https://fonts.googleapis.com"/>
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-			<link href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600;700&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+			<link
+				href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600;700&family=Syne:wght@500;600;700;800&display=swap"
+				rel="stylesheet"
+			/>
 			<style>
-				:root {
-					--bg: #0a0a0b;
-					--surface: #141416;
-					--elevated: #1e1e22;
-					--text: #f2f2f2;
-					--muted: #9a9a9e;
-					--accent: #c8f560;
-					--accent-hover: #b6e050;
-					--destructive: #ff5a5a;
-					--destructive-hover: #e84b4b;
-					--border: rgba(255, 255, 255, 0.08);
-				}
-				body {
-					background-color: var(--bg);
-					color: var(--text);
-					font-family: 'Onest', sans-serif;
-					background-image: radial-gradient(circle at 15% 20%, rgba(200, 245, 96, 0.04) 0%, transparent 35%),
-						radial-gradient(circle at 85% 10%, rgba(255, 90, 90, 0.03) 0%, transparent 30%);
-					background-attachment: fixed;
-				}
-				h1,
-				h2,
-				h3,
-				.font-display {
-					font-family: 'Syne', sans-serif;
-				}
-				input,
-				textarea,
-				select {
-					background-color: var(--elevated);
-					border: 1px solid var(--border);
-					color: var(--text);
-					border-radius: 0.6rem;
-					padding: 0.6rem 0.85rem;
-					width: 100%;
-					font-family: inherit;
-					font-size: 0.95rem;
-					transition: border-color 0.15s ease, box-shadow 0.15s ease;
-				}
-				input:focus,
-				textarea:focus,
-				select:focus {
-					outline: none;
-					border-color: var(--accent);
-					box-shadow: 0 0 0 3px rgba(200, 245, 96, 0.12);
-				}
-				label {
-					display: block;
-					color: var(--muted);
-					font-size: 0.85rem;
-					font-weight: 500;
-					margin-bottom: 0.35rem;
-				}
-				.btn,
-				.btn-destructive {
-					display: inline-flex;
-					align-items: center;
-					justify-content: center;
-					gap: 0.4rem;
-					padding: 0.6rem 1.25rem;
-					border-radius: 0.75rem;
-					font-weight: 600;
-					font-size: 0.9rem;
-					line-height: 1;
-					cursor: pointer;
-					border: none;
-					transition: transform 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-				}
-				.btn {
-					background-color: var(--accent);
-					color: #0a0a0b;
-					box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 4px 16px rgba(200, 245, 96, 0.22);
-				}
-				.btn:hover {
-					background-color: var(--accent-hover);
-					transform: translateY(-1px);
-				}
-				.btn:active {
-					transform: translateY(0);
-				}
-				.btn-destructive {
-					background-color: rgba(255, 90, 90, 0.10);
-					color: var(--destructive);
-					border: 1px solid rgba(255, 90, 90, 0.22);
-				}
-				.btn-destructive:hover {
-					background-color: var(--destructive);
-					color: #fff;
-					border-color: var(--destructive);
-					transform: translateY(-1px);
-				}
-				.btn-destructive:active {
-					transform: translateY(0);
-				}
-			</style>
+    :root {
+      --bg: #0a0a0b;
+      --surface: #141416;
+      --elevated: #1e1e22;
+      --text: #f2f2f2;
+      --muted: #9a9a9e;
+      --accent: #c8f560;
+      --accent-hover: #b6e050;
+      --destructive: #ff5a5a;
+      --destructive-hover: #e84b4b;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Onest', sans-serif;
+      background-image: radial-gradient(circle at 15% 20%, rgba(200, 245, 96, 0.04) 0%, transparent 35%),
+        radial-gradient(circle at 85% 10%, rgba(255, 90, 90, 0.03) 0%, transparent 30%);
+      background-attachment: fixed;
+    }
+
+    h1,
+    h2,
+    h3,
+    .font-display {
+      font-family: 'Syne', sans-serif;
+    }
+
+    input,
+    textarea,
+    select {
+      background-color: var(--elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 0.6rem;
+      padding: 0.6rem 0.85rem;
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(200, 245, 96, 0.12);
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 0.35rem;
+    }
+
+    .btn,
+    .btn-destructive {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1.25rem;
+      border-radius: 0.75rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      line-height: 1;
+      cursor: pointer;
+      border: none;
+      transition: transform 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .btn {
+      background-color: var(--accent);
+      color: #0a0a0b;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 4px 16px rgba(200, 245, 96, 0.22);
+    }
+
+    .btn:hover {
+      background-color: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-destructive {
+      background-color: rgba(255, 90, 90, 0.10);
+      color: var(--destructive);
+      border: 1px solid rgba(255, 90, 90, 0.22);
+    }
+
+    .btn-destructive:hover {
+      background-color: var(--destructive);
+      color: #fff;
+      border-color: var(--destructive);
+      transform: translateY(-1px);
+    }
+
+    .btn-destructive:active {
+      transform: translateY(0);
+    }
+
+    .htmx-indicator {
+      display: none;
+    }
+
+    .htmx-request .htmx-indicator,
+    .htmx-request.htmx-indicator {
+      display: inline-block;
+    }
+  </style>
 		</head>
 		<body class="min-h-screen antialiased">
 			@children

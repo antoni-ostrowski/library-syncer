@@ -10,18 +10,24 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
-	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
-	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
-	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/runner"
 	"github.com/antoni-ostrowski/library-syncer/internal/web"
 )
 
 func main() {
-	loadEnv(".env.local")
+	sleepSec, devMode, db := runConfig()
+	runner := runner.New(db, sleepSec, devMode)
+	ctx := context.Background()
+	go runner.Start(ctx)
+	runner.Trigger()
+	go web.StartHttpServer(db, runner)
+	select {}
+}
 
+func runConfig() (int, bool, *db.DbService) {
+	loadEnv(".env.local")
 	requiredEnvs := []string{
 		"DB_PATH",
 		"SONGS_PATH",
@@ -31,12 +37,13 @@ func main() {
 		"SLEEP_SEC",
 		"SHEETS_PATH",
 	}
-
 	sleepSec, err := strconv.Atoi(os.Getenv("SLEEP_SEC"))
 	if err != nil {
 		fmt.Printf("Startup Error: incorrect sleep sec env value, expected number: %v\n", err)
 		os.Exit(1)
 	}
+
+	var trackOutputDir = os.Getenv("SONGS_PATH")
 
 	if err := ValidateEnvs(requiredEnvs); err != nil {
 		fmt.Printf("Startup Error: %v\n", err)
@@ -55,10 +62,6 @@ func main() {
 
 	db := db.NewDbService(dbConn)
 
-	go web.StartHttpServer(db)
-
-	var trackOutputDir = os.Getenv("SONGS_PATH")
-
 	clearSheetsDir(os.Getenv("SHEETS_PATH"))
 	toCreate := []string{trackOutputDir, os.Getenv("SECRETS_PATH"), os.Getenv("SHEETS_PATH")}
 
@@ -71,70 +74,7 @@ func main() {
 
 	fmt.Printf("dev mode %v\n", *devMode)
 
-	ctx := context.Background()
-	trackers, err := db.ListTrackers(ctx)
-	if err != nil {
-		fmt.Printf("%v", err)
-		os.Exit(1)
-	}
-
-	tracksToDownload := make(chan downloader.Downloadable, 10000)
-
-	for {
-		fmt.Printf("---executing the main loop... \n")
-
-		ctx := context.Background()
-		downloader.DownloadTracks(ctx, *devMode, tracksToDownload)
-		for _, v := range trackers {
-			tracker := v
-			tracker.Status = "syncing"
-			if err := db.UpsertTracker(ctx, tracker); err != nil {
-				log.Printf("failed to mark syncing: %v", err)
-				continue
-			}
-
-			ExecuteTracker(ctx, db, v, tracksToDownload)
-
-			tracker.Status = "synced"
-			if err := db.UpsertTracker(ctx, tracker); err != nil {
-				log.Printf("failed to mark final status: %v", err)
-			}
-		}
-
-		fmt.Printf("---sleeping... \n")
-		time.Sleep(time.Second * time.Duration(sleepSec))
-	}
-
-}
-
-func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracker, tracksToDownload chan<- downloader.Downloadable) {
-	fmt.Printf("running for %v\n", tracker.Artist)
-	for _, readRange := range tracker.ReadRanges {
-		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.Id, readRange)
-		if err != nil {
-			fmt.Printf("failed to download source csv: %v\n", err)
-			return
-		}
-		fmt.Printf("csv at %v\n", csvPath)
-
-		sourceTracks, err := parser.Parse(csvPath, tracker)
-		if err != nil {
-			fmt.Printf("failed to parse source csv: %v\n", err)
-			return
-		}
-		fmt.Printf("%v source tracks found\n", len(sourceTracks))
-
-		trackerId := tracker.Id + "#" + readRange
-		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerId)
-		if err != nil {
-			fmt.Printf("failed to sync tracks to db: %v\n", err)
-			return
-		}
-		fmt.Println(syncResult)
-		for _, v := range syncResult.TracksToDownload {
-			tracksToDownload <- v
-		}
-	}
+	return sleepSec, *devMode, db
 
 }
 
