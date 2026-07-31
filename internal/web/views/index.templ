@@ -1,7 +1,10 @@
 package views
 
+import "github.com/antoni-ostrowski/library-syncer/internal/parser"
+
 type IndexModel struct {
-	TrackerListModel TrackerListModel
+	Trackers  []parser.Tracker
+	IsRunning bool
 }
 
 templ Index(m IndexModel) {
@@ -17,13 +20,12 @@ templ Index(m IndexModel) {
 					<span class="inline-block h-2 w-2 rounded-full bg-[var(--accent)]"></span>
 					<h2 class="font-display text-xl font-semibold text-white">Active trackers</h2>
 				</div>
-				<button class="btn" hx-post="/run" hx-swap="none">
-					Trigger run
-					<span class="htmx-indicator">loading...</span>
-				</button>
+				<div id="runner-state" hx-get="/runner-state" hx-trigger="load, runnerStateChanged from:body, every 2s">
+					@TriggerBtn(m.IsRunning)
+				</div>
 			</div>
 			<div hx-swap="innerHTML" hx-get="/tracker-list" hx-trigger="load, refreshList from:body, every 2s">
-				@TrackerList(m.TrackerListModel)
+				@TrackerList(m.Trackers, m.IsRunning)
 			</div>
 		</section>
 		<section>
@@ -34,4 +36,25 @@ templ Index(m IndexModel) {
 			@InsertTracker()
 		</section>
 	</main>
+}
+
+templ TriggerBtn(running bool) {
+	if running {
+		<span class="inline-flex items-center gap-2 text-sm font-medium text-white/60">
+			<span class="h-2 w-2 animate-pulse rounded-full bg-amber-400"></span>
+			running...
+		</span>
+	} else {
+		<button class="btn" hx-post="/run" hx-swap="none">
+			Trigger run
+		</button>
+	}
+}
+
+templ TrackerList(trackers []parser.Tracker, isRunning bool) {
+	<div id="tracker-list" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+		for _, v := range trackers {
+			@Tracker(v, isRunning)
+		}
+	</div>
 }

@@ -18,11 +18,11 @@ import (
 
 func main() {
 	sleepSec, devMode, db := runConfig()
-	runner := runner.New(db, sleepSec, devMode)
+	run := runner.New(db, sleepSec, devMode)
 	ctx := context.Background()
-	go runner.Start(ctx)
-	runner.Trigger()
-	go web.StartHttpServer(db, runner)
+	go run.Start(ctx)
+	run.Trigger(runner.Cmd{Type: runner.CmdTypeRunAll})
+	go web.StartHttpServer(db, run)
 	select {}
 }
 

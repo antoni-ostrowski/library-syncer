@@ -13,13 +13,13 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/web/views"
 )
 
-func StartHttpServer(db *db.DbService, runner *runner.Runner) {
+func StartHttpServer(db *db.DbService, run *runner.Runner) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		trackers, err := db.ListTrackers(r.Context())
 		if err != nil {
 			views.Error(err.Error()).Render(r.Context(), w)
 		}
-		views.Base(views.Index(views.IndexModel{TrackerListModel: views.TrackerListModel{Trackers: trackers}})).Render(r.Context(), w)
+		views.Base(views.Index(views.IndexModel{Trackers: trackers})).Render(r.Context(), w)
 	})
 
 	http.HandleFunc("/tracker-list", func(w http.ResponseWriter, r *http.Request) {
@@ -27,8 +27,9 @@ func StartHttpServer(db *db.DbService, runner *runner.Runner) {
 		if err != nil {
 			views.Error(err.Error()).Render(r.Context(), w)
 		}
+		running := run.IsRunning()
 
-		views.TrackerList(views.TrackerListModel{Trackers: trackers}).Render(r.Context(), w)
+		views.TrackerList(trackers, running).Render(r.Context(), w)
 	})
 
 	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
@@ -36,10 +37,25 @@ func StartHttpServer(db *db.DbService, runner *runner.Runner) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		runner.Trigger()
-		w.Header().Set("HX-Trigger", "refreshList")
+
+		id := r.URL.Query().Get("id")
+		if id != "" {
+			fmt.Printf("called to run %v\n", id)
+			run.Trigger(runner.Cmd{Type: runner.CmdTypeRunOne, Id: id})
+		} else {
+			fmt.Printf("called to run al\n")
+			run.Trigger(runner.Cmd{Type: runner.CmdTypeRunAll})
+		}
+
+		w.Header().Set("HX-Trigger", "refreshList, runnerStateChanged")
 		w.WriteHeader(http.StatusAccepted)
 
+	})
+
+	http.HandleFunc("/runner-state", func(w http.ResponseWriter, r *http.Request) {
+		running := run.IsRunning()
+
+		views.TriggerBtn(running).Render(r.Context(), w)
 	})
 
 	http.HandleFunc("/tracker", func(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +91,8 @@ func StartHttpServer(db *db.DbService, runner *runner.Runner) {
 				http.Error(w, "failed to save tracker", http.StatusInternalServerError)
 				return
 			}
-			views.Tracker(newTracker).Render(r.Context(), w)
+			running := run.IsRunning()
+			views.Tracker(newTracker, running).Render(r.Context(), w)
 		case http.MethodDelete:
 			id := r.URL.Query().Get("id")
 			if id == "" {

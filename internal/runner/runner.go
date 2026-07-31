@@ -16,15 +16,26 @@ import (
 
 type Runner struct {
 	running          atomic.Bool
-	manual           chan struct{}
+	manual           chan Cmd
 	db               *db.DbService
 	devMode          bool
 	sleepDuration    time.Duration
 	tracksToDownload chan downloader.Downloadable
 }
+type CmdType int
+
+const (
+	CmdTypeRunAll = iota
+	CmdTypeRunOne
+)
+
+type Cmd struct {
+	Id   string
+	Type CmdType
+}
 
 func New(db *db.DbService, sleepSec int, devMode bool) *Runner {
-	return &Runner{db: db, tracksToDownload: make(chan downloader.Downloadable, 10000), sleepDuration: time.Duration(sleepSec) * time.Second, devMode: devMode, manual: make(chan struct{}, 1)}
+	return &Runner{db: db, tracksToDownload: make(chan downloader.Downloadable, 10000), sleepDuration: time.Duration(sleepSec) * time.Second, devMode: devMode, manual: make(chan Cmd, 1)}
 }
 
 func (r *Runner) Start(ctx context.Context) {
@@ -33,25 +44,48 @@ func (r *Runner) Start(ctx context.Context) {
 	for {
 		select {
 		case <-timer.C:
-			r.run(ctx)
+			r.runAll(ctx)
 			timer.Reset(r.sleepDuration)
-		case <-r.manual:
-			r.run(ctx)
+		case cmd := <-r.manual:
+			switch cmd.Type {
+			case CmdTypeRunAll:
+				r.runAll(ctx)
+			case CmdTypeRunOne:
+				r.runTracker(ctx, cmd.Id)
+			default:
+			}
 			timer.Reset(r.sleepDuration)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
-func (r *Runner) Trigger() {
+func (r *Runner) Trigger(cmd Cmd) {
 	select {
-	case r.manual <- struct{}{}:
+	case r.manual <- cmd:
 	default:
 	}
-
+}
+func (r *Runner) IsRunning() bool {
+	return r.running.Load()
 }
 
-func (r *Runner) run(ctx context.Context) {
+func (r *Runner) runTracker(ctx context.Context, trackerId string) {
+	if !r.running.CompareAndSwap(false, true) {
+		return
+	}
+	defer r.running.Store(false)
+
+	tracker, err := r.db.GetTracker(ctx, trackerId)
+	if err != nil {
+		fmt.Printf("%v", err)
+		os.Exit(1)
+	}
+	downloader.DownloadTracks(ctx, r.devMode, r.tracksToDownload)
+	ExecuteTracker(ctx, r.db, tracker, r.tracksToDownload)
+}
+
+func (r *Runner) runAll(ctx context.Context) {
 	if !r.running.CompareAndSwap(false, true) {
 		return
 	}
@@ -67,6 +101,7 @@ func (r *Runner) run(ctx context.Context) {
 	for _, v := range trackers {
 		ExecuteTracker(ctx, r.db, v, r.tracksToDownload)
 	}
+
 	fmt.Printf("---sleeping---\n")
 
 }
@@ -94,8 +129,8 @@ func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracke
 		}
 		fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-		trackerId := tracker.Id + "#" + readRange
-		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerId)
+		trackerUniqueDbId := tracker.Id + "#" + readRange
+		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerUniqueDbId)
 		if err != nil {
 			fmt.Printf("failed to sync tracks to db: %v\n", err)
 			return
@@ -104,6 +139,7 @@ func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracke
 		for _, v := range syncResult.TracksToDownload {
 			tracksToDownload <- v
 		}
+
 	}
 
 	upTracker.Status = "synced"

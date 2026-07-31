@@ -30,7 +30,7 @@ func (s SyncResult) String() string {
 	return fmt.Sprintf("inserted or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
 }
 
-func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.Downloadable, trackerId string) (SyncResult, error) {
+func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.Downloadable, trackerUniqueDbId string) (SyncResult, error) {
 	fmt.Printf("---syncing source tracks to database... \n")
 
 	tx, err := d.db.BeginTx(ctx, nil)
@@ -58,7 +58,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.D
 			WHERE tracks.metadata <> EXCLUDED.metadata;
 		`
 
-		if _, err := tx.ExecContext(ctx, upsertSQL, hashId, trackerId, jsonStr); err != nil {
+		if _, err := tx.ExecContext(ctx, upsertSQL, hashId, trackerUniqueDbId, jsonStr); err != nil {
 			return SyncResult{}, err
 		}
 
@@ -76,7 +76,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.D
 		freshIds[hashId] = struct{}{}
 	}
 
-	rows, err := tx.QueryContext(ctx, "SELECT id FROM tracks WHERE tracker_id = ?;", trackerId)
+	rows, err := tx.QueryContext(ctx, "SELECT id FROM tracks WHERE tracker_id = ?;", trackerUniqueDbId)
 	if err != nil {
 		return SyncResult{}, err
 	}
@@ -88,7 +88,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.D
 			return SyncResult{}, err
 		}
 		if _, exists := freshIds[dbId]; !exists {
-			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ? AND tracker_id = ?;", dbId, trackerId); err != nil {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ? AND tracker_id = ?;", dbId, trackerUniqueDbId); err != nil {
 				return SyncResult{}, err
 			}
 			result.DeletionsCount++
@@ -172,5 +172,29 @@ func (d *DbService) DeleteTracker(ctx context.Context, trackerId string) error {
 		return fmt.Errorf("failed to delete tracker: %v\n", err)
 	}
 	return nil
+
+}
+
+func (d *DbService) GetTracker(ctx context.Context, trackerId string) (parser.Tracker, error) {
+	var t parser.Tracker
+	var readRangesJSON string
+	var mappingJSON string
+	err := d.db.QueryRowContext(ctx, `SELECT id, read_ranges, artist, mapping, status FROM trackers WHERE id = ?;`, trackerId).Scan(&t.Id, &readRangesJSON, &t.Artist, &mappingJSON, &t.Status)
+	if err == sql.ErrNoRows {
+		return t, err
+	}
+	if err != nil {
+		return t, err
+	}
+
+	if err := json.Unmarshal([]byte(readRangesJSON), &t.ReadRanges); err != nil {
+		return t, err
+	}
+
+	if err := json.Unmarshal([]byte(mappingJSON), &t.Mapping); err != nil {
+		return t, err
+	}
+
+	return t, err
 
 }

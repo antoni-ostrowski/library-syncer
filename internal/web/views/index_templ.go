@@ -8,8 +8,11 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "github.com/antoni-ostrowski/library-syncer/internal/parser"
+
 type IndexModel struct {
-	TrackerListModel TrackerListModel
+	Trackers  []parser.Tracker
+	IsRunning bool
 }
 
 func Index(m IndexModel) templ.Component {
@@ -33,15 +36,23 @@ func Index(m IndexModel) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"mx-auto max-w-6xl px-6 py-10\"><header class=\"mb-10 flex items-end justify-between gap-6 border-b border-white/10 pb-6\"><div><h1 class=\"text-3xl\">Library Syncer</h1></div></header><section class=\"mb-10\"><div class=\"mb-4 flex items-center justify-between w-full gap-3\"><div class=\"flex flex-row gap-3 justify-center items-center\"><span class=\"inline-block h-2 w-2 rounded-full bg-[var(--accent)]\"></span><h2 class=\"font-display text-xl font-semibold text-white\">Active trackers</h2></div><button class=\"btn\" hx-post=\"/run\" hx-swap=\"none\">Trigger run <span class=\"htmx-indicator\">loading...</span></button></div><div hx-swap=\"innerHTML\" hx-get=\"/tracker-list\" hx-trigger=\"load, refreshList from:body, every 2s\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"mx-auto max-w-6xl px-6 py-10\"><header class=\"mb-10 flex items-end justify-between gap-6 border-b border-white/10 pb-6\"><div><h1 class=\"text-3xl\">Library Syncer</h1></div></header><section class=\"mb-10\"><div class=\"mb-4 flex items-center justify-between w-full gap-3\"><div class=\"flex flex-row gap-3 justify-center items-center\"><span class=\"inline-block h-2 w-2 rounded-full bg-[var(--accent)]\"></span><h2 class=\"font-display text-xl font-semibold text-white\">Active trackers</h2></div><div id=\"runner-state\" hx-get=\"/runner-state\" hx-trigger=\"load, runnerStateChanged from:body, every 2s\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = TrackerList(m.TrackerListModel).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = TriggerBtn(m.IsRunning).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div></section><section><div class=\"mb-4 flex items-center gap-3\"><span class=\"inline-block h-2 w-2 rounded-full bg-[var(--destructive)]\"></span><h2 class=\"font-display text-xl font-semibold text-white\">Add tracker</h2></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div></div><div hx-swap=\"innerHTML\" hx-get=\"/tracker-list\" hx-trigger=\"load, refreshList from:body, every 2s\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = TrackerList(m.Trackers, m.IsRunning).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></section><section><div class=\"mb-4 flex items-center gap-3\"><span class=\"inline-block h-2 w-2 rounded-full bg-[var(--destructive)]\"></span><h2 class=\"font-display text-xl font-semibold text-white\">Add tracker</h2></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -49,7 +60,82 @@ func Index(m IndexModel) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</section></main>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</section></main>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func TriggerBtn(running bool) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var2 == nil {
+			templ_7745c5c3_Var2 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		if running {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"inline-flex items-center gap-2 text-sm font-medium text-white/60\"><span class=\"h-2 w-2 animate-pulse rounded-full bg-amber-400\"></span> running...</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button class=\"btn\" hx-post=\"/run\" hx-swap=\"none\">Trigger run</button>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		return nil
+	})
+}
+
+func TrackerList(trackers []parser.Tracker, isRunning bool) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div id=\"tracker-list\" class=\"grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, v := range trackers {
+			templ_7745c5c3_Err = Tracker(v, isRunning).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

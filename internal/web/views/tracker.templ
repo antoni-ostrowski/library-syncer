@@ -2,7 +2,7 @@ package views
 
 import "github.com/antoni-ostrowski/library-syncer/internal/parser"
 
-templ Tracker(m parser.Tracker) {
+templ Tracker(m parser.Tracker, isRunning bool) {
 	<div
 		class="group relative flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm transition duration-200 hover:border-white/15 hover:bg-white/[0.05]"
 	>
@@ -23,7 +23,15 @@ templ Tracker(m parser.Tracker) {
 				</span>
 			}
 		</div>
-		<div class="mt-auto pt-2">
+		<div class="mt-auto pt-2 flex flex-row gap-2">
+			if isRunning {
+				<span class="inline-flex items-center gap-2 text-sm font-medium text-white/60">
+					<span class="h-2 w-2 animate-pulse rounded-full bg-amber-400"></span>
+					running...
+				</span>
+			} else {
+				<button class="btn" hx-post={ "/run?id=" + m.Id } hx-swap="none">Trigger run</button>
+			}
 			<button class="btn-destructive" hx-delete={ "/tracker?id=" + m.Id } hx-target="#tracker-list">Delete</button>
 		</div>
 	</div>
