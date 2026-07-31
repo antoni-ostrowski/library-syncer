@@ -33,7 +33,7 @@ func Index(m IndexModel) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div>this is index page<div hx-swap=\"innerHTML\" hx-get=\"/tracker-list\" hx-trigger=\"every 2s\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main class=\"mx-auto max-w-6xl px-6 py-10\"><header class=\"mb-10 flex items-end justify-between gap-6 border-b border-white/10 pb-6\"><div><h1 class=\"text-3xl\">Library Syncer</h1></div></header><section class=\"mb-10\"><div class=\"mb-4 flex items-center gap-3\"><span class=\"inline-block h-2 w-2 rounded-full bg-[var(--accent)]\"></span><h2 class=\"font-display text-xl font-semibold text-white\">Active trackers</h2></div><div hx-swap=\"innerHTML\" hx-get=\"/tracker-list\" hx-trigger=\"every 2s\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -41,7 +41,7 @@ func Index(m IndexModel) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div></section><section><div class=\"mb-4 flex items-center gap-3\"><span class=\"inline-block h-2 w-2 rounded-full bg-[var(--destructive)]\"></span><h2 class=\"font-display text-xl font-semibold text-white\">Add tracker</h2></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -49,7 +49,7 @@ func Index(m IndexModel) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</section></main>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

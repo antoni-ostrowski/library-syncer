@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
@@ -51,7 +52,13 @@ func StartHttpServer(db *db.DbService) {
 				LeakDate:       r.FormValue("mapping_leakDate"),
 				OGFileLeakDate: r.FormValue("mapping_ogFileLeakDate"),
 			}
-			newTracker := parser.NewTracker(r.FormValue("artist"), r.FormValue("id"), readRanges, mapping, "idle")
+			spreadsheetId, ok := sheetID(r.FormValue("id"))
+			if !ok {
+				fmt.Printf("no spreadsheetId found")
+				http.Error(w, "no spreadsheetId found in link", http.StatusBadRequest)
+
+			}
+			newTracker := parser.NewTracker(r.FormValue("artist"), spreadsheetId, readRanges, mapping, "idle")
 			if err := db.UpsertTracker(r.Context(), newTracker); err != nil {
 				fmt.Printf("upsert tracker failed: %v\n", err)
 				http.Error(w, "failed to save tracker", http.StatusInternalServerError)
@@ -74,4 +81,16 @@ func StartHttpServer(db *db.DbService) {
 	if err := http.ListenAndServe(":3000", nil); err != nil {
 		log.Fatalln("server error: ", err)
 	}
+}
+
+func sheetID(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) >= 3 && parts[0] == "spreadsheets" && parts[1] == "d" {
+		return parts[2], true
+	}
+	return "", false
 }

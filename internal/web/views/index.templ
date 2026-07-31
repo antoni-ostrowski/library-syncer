@@ -5,13 +5,27 @@ type IndexModel struct {
 }
 
 templ Index(m IndexModel) {
-	<div>
-		this is index page
-		<div hx-swap="innerHTML" hx-get="/tracker-list" hx-trigger="every 2s">
-			@TrackerList(m.TrackerListModel)
-		</div>
-		<div>
+	<main class="mx-auto max-w-6xl px-6 py-10">
+		<header class="mb-10 flex items-end justify-between gap-6 border-b border-white/10 pb-6">
+			<div>
+				<h1 class="text-3xl">Library Syncer</h1>
+			</div>
+		</header>
+		<section class="mb-10">
+			<div class="mb-4 flex items-center gap-3">
+				<span class="inline-block h-2 w-2 rounded-full bg-[var(--accent)]"></span>
+				<h2 class="font-display text-xl font-semibold text-white">Active trackers</h2>
+			</div>
+			<div hx-swap="innerHTML" hx-get="/tracker-list" hx-trigger="every 2s">
+				@TrackerList(m.TrackerListModel)
+			</div>
+		</section>
+		<section>
+			<div class="mb-4 flex items-center gap-3">
+				<span class="inline-block h-2 w-2 rounded-full bg-[var(--destructive)]"></span>
+				<h2 class="font-display text-xl font-semibold text-white">Add tracker</h2>
+			</div>
 			@InsertTracker()
-		</div>
-	</div>
+		</section>
+	</main>
 }

@@ -22,30 +22,47 @@ var MappingFields = []MappingField{
 }
 
 templ InsertTracker() {
-	<div>
+	<div class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
 		<form hx-post="/tracker" hx-target="#tracker-list" hx-on::after-request="this.reset()" hx-swap="beforebegin">
-			<div>
-				<label for="id">Spreadsheet ID</label>
-				<input type="text" id="id" name="id" required value="1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI"/>
+			<div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+				<div class="md:col-span-2">
+					<label for="id">Spreadsheet Link</label>
+					<input
+						type="text"
+						id="id"
+						name="id"
+						required
+						value="https://docs.google.com/spreadsheets/d/1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI/edit?gid=1241081326#gid=1241081326"
+					/>
+				</div>
+				<div>
+					<label for="artist">Artist</label>
+					<input type="text" id="artist" name="artist" required value="yeat"/>
+				</div>
+				<div class="md:col-span-3">
+					<label for="readRanges">Read Ranges (one per line)</label>
+					<textarea id="readRanges" name="readRanges" required rows="3">{ "Unreleased\nReleased" }</textarea>
+				</div>
 			</div>
-			<div>
-				<label for="artist">Artist</label>
-				<input type="text" id="artist" name="artist" required value="yeat"/>
-			</div>
-			<div>
-				<label for="readRanges">Read Ranges (one per line)</label>
-				<textarea id="readRanges" name="readRanges" required>{ "Unreleased\nReleased" }</textarea>
-			</div>
-			<fieldset>
-				<legend>Column Mapping</legend>
-				for _, field := range MappingFields {
-					<div>
-						<label for={ "mapping_" + field.Name }>{ field.Label }</label>
-						<input type="text" id={ "mapping_" + field.Name } name={ "mapping_" + field.Name } value={ field.Value }/>
-					</div>
-				}
+			<fieldset class="mt-6">
+				<legend class="font-display mb-4 text-lg font-semibold text-white">Column Mapping</legend>
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					for _, field := range MappingFields {
+						<div>
+							<label for={ "mapping_" + field.Name }>
+								{ field.Label }
+								if field.Required {
+									<span class="ml-1 text-[var(--destructive)]">*</span>
+								}
+							</label>
+							<input type="text" id={ "mapping_" + field.Name } name={ "mapping_" + field.Name } value={ field.Value }/>
+						</div>
+					}
+				</div>
 			</fieldset>
-			<button type="submit">Add Tracker</button>
+			<div class="mt-6">
+				<button type="submit" class="btn">Add Tracker</button>
+			</div>
 		</form>
 	</div>
 }
