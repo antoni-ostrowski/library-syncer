@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
@@ -56,6 +58,10 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		running := run.IsRunning()
 
 		views.TriggerBtn(running).Render(r.Context(), w)
+	})
+	http.HandleFunc("/nuke-library", func(w http.ResponseWriter, r *http.Request) {
+		NukeLibrary()
+		os.Exit(0)
 	})
 
 	http.HandleFunc("/tracker", func(w http.ResponseWriter, r *http.Request) {
@@ -121,4 +127,34 @@ func sheetID(raw string) (string, bool) {
 		return parts[2], true
 	}
 	return "", false
+}
+
+func NukeLibrary() {
+	songsDir := os.Getenv("SONGS_PATH")
+	if songsDir == "" {
+		log.Fatal("SONGS_PATH not set")
+	}
+
+	dbDir := os.Getenv("DB_PATH")
+	if dbDir == "" {
+		log.Fatal("DB_PATH not set")
+	}
+
+	entries, err := os.ReadDir(songsDir)
+	if err != nil {
+		log.Fatalf("failed to read songs dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(songsDir, entry.Name())
+		if err := os.RemoveAll(path); err != nil {
+			log.Fatalf("failed to remove %s: %v", path, err)
+		}
+	}
+
+	dbFile := filepath.Join(dbDir, "data.db")
+
+	os.Remove(dbFile)
+	os.Remove(dbFile + "-wal")
+	os.Remove(dbFile + "-shm")
 }
