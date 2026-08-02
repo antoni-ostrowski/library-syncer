@@ -39,6 +39,7 @@ func New(db *db.DbService, sleepSec int, devMode bool) *Runner {
 }
 
 func (r *Runner) Start(ctx context.Context) {
+	downloader.DownloadTracks(ctx, r.devMode, r.tracksToDownload)
 	timer := time.NewTicker(r.sleepDuration)
 	defer timer.Stop()
 	for {
@@ -81,7 +82,6 @@ func (r *Runner) runTracker(ctx context.Context, trackerId string) {
 		fmt.Printf("%v", err)
 		os.Exit(1)
 	}
-	downloader.DownloadTracks(ctx, r.devMode, r.tracksToDownload)
 	ExecuteTracker(ctx, r.db, tracker, r.tracksToDownload)
 }
 
@@ -97,7 +97,6 @@ func (r *Runner) runAll(ctx context.Context) {
 		os.Exit(1)
 	}
 
-	downloader.DownloadTracks(ctx, r.devMode, r.tracksToDownload)
 	for _, v := range trackers {
 		ExecuteTracker(ctx, r.db, v, r.tracksToDownload)
 	}
