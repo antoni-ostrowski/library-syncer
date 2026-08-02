@@ -105,6 +105,12 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 		return err
 	}
 
+	err = Amplify(finalName)
+	if err != nil {
+		debugLog("failed to amplify track: %v\n", err)
+		return err
+	}
+
 	debugLog("successfully downloaded %v \n", t.Name)
 
 	return nil
@@ -169,6 +175,11 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 		return err
 	}
 
+	err = Amplify(finalPath)
+	if err != nil {
+		debugLog("failed to amplify track: %v\n", err)
+		return err
+	}
 	debugLog("successfully downloaded %v \n", t.Name)
 
 	return nil
@@ -327,16 +338,80 @@ func getTrackSlug(link string) string {
 }
 
 func writeMetadata(filepath string, t Track) error {
-	err := taglib.WriteTags(filepath, map[string][]string{
-		taglib.Album:  {t.Era},
-		taglib.Title:  {t.Name},
-		taglib.Artist: {t.Artist},
-		"COMM":        {t.Notes},
-	}, 0)
+	existing, _ := taglib.ReadTags(filepath)
+
+	tags := map[string][]string{
+		taglib.Album:           {t.Era},
+		taglib.Title:           {t.Name},
+		taglib.Comment:         {t.Notes},
+		taglib.Artist:          {t.Artist},
+		taglib.AlbumArtist:     {t.Artist},
+		taglib.ArtistSort:      {t.Artist},
+		taglib.AlbumArtistSort: {t.Artist},
+		taglib.Composer:        {t.Artist},
+		taglib.Artists:         {t.Artist},
+		taglib.Conductor:       {t.Artist},
+		taglib.Performer:       {t.Artist},
+		taglib.Remixer:         {t.Artist},
+		taglib.OriginalArtist:  {t.Artist},
+	}
+
+	if dates, ok := existing[taglib.Date]; ok {
+		tags[taglib.Date] = dates
+	}
+
+	if releaseDate, ok := existing[taglib.ReleaseDate]; ok {
+		tags[taglib.ReleaseDate] = releaseDate
+	}
+
+	if ogDate, ok := existing[taglib.OriginalDate]; ok {
+		tags[taglib.OriginalDate] = ogDate
+	}
+
+	err := taglib.WriteTags(filepath, tags, taglib.Clear)
 
 	imageBytes := getImageForTrack(t, baseCoverPath)
 	err = taglib.WriteImage(filepath, imageBytes)
 
 	return err
 
+}
+
+// AmplifyMP3 makes the file 7 dB louder with a limiter and replaces the
+// original via a temp file (so the change looks "in-place").
+func Amplify(path string) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, "*.mp3")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	tmpPath := tmp.Name()
+	tmp.Close()
+
+	// clean up temp on failure
+	defer func() {
+		if _, err := os.Stat(tmpPath); err == nil {
+			os.Remove(tmpPath)
+		}
+	}()
+
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i", path,
+		"-filter:a", "volume=7.0dB,alimiter=limit=0.95",
+		"-c:a", "libmp3lame",
+		"-b:a", "320k",
+		"-y", tmpPath,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg failed: %w\n%s", err, out)
+	}
+
+	// atomic-ish rename across the same dir
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename temp over original: %w", err)
+	}
+
+	return nil
 }
