@@ -2,6 +2,7 @@ package parser
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -53,9 +54,20 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 	r := csv.NewReader(f)
 	r.FieldsPerRecord = -1
 
-	headers, err := r.Read()
-	if err != nil {
-		return nil, err
+	var headers []string
+	for {
+		row, err := r.Read()
+		if err == io.EOF {
+			return nil, fmt.Errorf("could not find CSV header")
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		if isHeader(row, readRangeMapping) {
+			headers = row
+			break
+		}
 	}
 
 	headerIdx := map[string]int{}
@@ -107,6 +119,33 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 	}
 
 	return downloadables, nil
+}
+
+func isHeader(row []string, mapping TrackerMapping) bool {
+	nameColumn := normalizeColumn(mapping.Name)
+	linksColumn := normalizeColumn(mapping.Links)
+	if nameColumn == "" || linksColumn == "" {
+		return false
+	}
+
+	foundName := false
+	foundLinks := false
+
+	for _, column := range row {
+		normalized := normalizeColumn(column)
+		if normalized == nameColumn {
+			foundName = true
+		}
+		if normalized == linksColumn {
+			foundLinks = true
+		}
+	}
+
+	return foundName && foundLinks
+}
+
+func normalizeColumn(column string) string {
+	return strings.ToLower(strings.Join(strings.Fields(column), " "))
 }
 
 func createPillowcaseLink(link string) string {
