@@ -16,7 +16,7 @@ var MappingFields = []MappingField{
 
 templ InsertTracker() {
 	<div class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
-		<form hx-post="/tracker" hx-target="#tracker-list" hx-on::after-request="this.reset()" hx-swap="beforebegin">
+		<form hx-post="/tracker" hx-target="#tracker-list" hx-on::after-request="this.reset()" hx-swap="beforeend">
 			<div class="grid grid-cols-1 gap-5 md:grid-cols-3">
 				<div class="md:col-span-2">
 					<label for="id">Spreadsheet Link</label>
