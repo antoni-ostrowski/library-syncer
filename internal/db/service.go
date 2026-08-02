@@ -155,12 +155,19 @@ func (d *DbService) UpsertTracker(ctx context.Context, newTracker parser.Tracker
 	return err
 }
 
-func (d *DbService) DeleteTracker(ctx context.Context, trackerId string) error {
-	_, err := d.db.ExecContext(ctx, `DELETE FROM trackers WHERE id = ?;`, trackerId)
+func (d *DbService) DeleteTracker(ctx context.Context, trackerId string) (string, error) {
+	tracker, err := d.GetTracker(ctx, trackerId)
 	if err != nil {
-		return fmt.Errorf("failed to delete tracker: %v\n", err)
+		return "", err
 	}
-	return nil
+	if _, err := d.db.ExecContext(ctx, `DELETE FROM trackers WHERE id = ?;`, trackerId); err != nil {
+		return "", err
+	}
+	if _, err := d.db.ExecContext(ctx, `DELETE FROM tracks WHERE tracker_id = ?;`, trackerId); err != nil {
+		return "", err
+	}
+
+	return tracker.Artist, nil
 
 }
 

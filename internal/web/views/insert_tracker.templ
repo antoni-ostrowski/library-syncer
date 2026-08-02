@@ -33,12 +33,12 @@ templ InsertTracker() {
 					<input type="text" id="artist" name="artist" required value="yeat"/>
 				</div>
 				<div class="md:col-span-3">
-					<label for="readRanges">Read Ranges (one per line)</label>
 					<div
-						x-data="{ ranges: [{ range: '', mapping: { era: 'Era', name: 'Name', notes: 'Notes (Join the Yeat Hub Discord!)', links: 'Link(s)' } }] }"
+						x-data="{ ranges: [{ range: 'Unreleased', mapping: { era: 'Era', name: 'Name', notes: 'Notes (Join the Yeat Hub Discord!)', links: 'Link(s)' } }] }"
 					>
 						<template x-for="(r, index) in ranges" :key="index">
 							<div class="grid gap-2 py-4">
+								<label for="readRanges">Read Ranges</label>
 								<input type="text" name="range" x-model="r.range" placeholder="Sheet range"/>
 								<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 									for _, field := range MappingFields {

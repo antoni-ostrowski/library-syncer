@@ -13,6 +13,7 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 	"github.com/antoni-ostrowski/library-syncer/internal/runner"
 	"github.com/antoni-ostrowski/library-syncer/internal/web/views"
+	"go.senan.xyz/taglib"
 )
 
 func StartHttpServer(db *db.DbService, run *runner.Runner) {
@@ -24,7 +25,7 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		views.Base(views.Index(views.IndexModel{Trackers: trackers})).Render(r.Context(), w)
 	})
 
-	http.HandleFunc("/tracker-list", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /tracker-list", func(w http.ResponseWriter, r *http.Request) {
 		trackers, err := db.ListTrackers(r.Context())
 		if err != nil {
 			views.Error(err.Error()).Render(r.Context(), w)
@@ -34,24 +35,17 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		views.TrackerList(trackers, running).Render(r.Context(), w)
 	})
 
-	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		id := r.URL.Query().Get("id")
-		if id != "" {
-			fmt.Printf("called to run %v\n", id)
-			run.Trigger(runner.Cmd{Type: runner.CmdTypeRunOne, Id: id})
-		} else {
-			fmt.Printf("called to run al\n")
-			run.Trigger(runner.Cmd{Type: runner.CmdTypeRunAll})
-		}
-
+	http.HandleFunc("POST /run", func(w http.ResponseWriter, r *http.Request) {
+		run.Trigger(runner.Cmd{Type: runner.CmdTypeRunAll})
 		w.Header().Set("HX-Trigger", "refreshList, runnerStateChanged")
 		w.WriteHeader(http.StatusAccepted)
+	})
 
+	http.HandleFunc("POST /run/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		run.Trigger(runner.Cmd{Type: runner.CmdTypeRunOne, Id: id})
+		w.Header().Set("HX-Trigger", "refreshList, runnerStateChanged")
+		w.WriteHeader(http.StatusAccepted)
 	})
 
 	http.HandleFunc("/runner-state", func(w http.ResponseWriter, r *http.Request) {
@@ -59,57 +53,62 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 
 		views.TriggerBtn(running).Render(r.Context(), w)
 	})
-	http.HandleFunc("/nuke-library", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("POST /nuke-library", func(w http.ResponseWriter, r *http.Request) {
 		NukeLibrary()
 		os.Exit(0)
 	})
 
-	http.HandleFunc("/tracker", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			if err := r.ParseForm(); err != nil {
-				http.Error(w, "invalid form", http.StatusBadRequest)
-				return
-			}
-			ranges := r.Form["range"]
-			var readRanges []parser.ReadRange
-			for i := range ranges {
-				readRanges = append(readRanges, parser.ReadRange{
-					Name: ranges[i],
-					Mapping: parser.TrackerMapping{
-						Name:  r.Form["mappingName"][i],
-						Era:   r.Form["mappingEra"][i],
-						Notes: r.Form["mappingNotes"][i],
-						Links: r.Form["mappingLinks"][i],
-					},
-				})
-			}
-
-			spreadsheetId, ok := sheetID(r.FormValue("id"))
-			if !ok {
-				fmt.Printf("no spreadsheetId found")
-				http.Error(w, "no spreadsheetId found in link", http.StatusBadRequest)
-
-			}
-			newTracker := parser.NewTracker(r.FormValue("artist"), spreadsheetId, "idle", readRanges)
-			if err := db.UpsertTracker(r.Context(), newTracker); err != nil {
-				fmt.Printf("upsert tracker failed: %v\n", err)
-				http.Error(w, "failed to save tracker", http.StatusInternalServerError)
-				return
-			}
-			running := run.IsRunning()
-			views.Tracker(newTracker, running).Render(r.Context(), w)
-		case http.MethodDelete:
-			id := r.URL.Query().Get("id")
-			if id == "" {
-				fmt.Printf("no tracker id provided\n")
-				http.Error(w, "failed to delete tracker: no id provided", http.StatusBadRequest)
-			}
-			if err := db.DeleteTracker(r.Context(), id); err != nil {
-				fmt.Printf("tracker deletion failed: %v\n", err)
-				http.Error(w, "failed to delete tracker", http.StatusInternalServerError)
-			}
+	http.HandleFunc("POST /tracker", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
 		}
+		ranges := r.Form["range"]
+		var readRanges []parser.ReadRange
+		for i := range ranges {
+			readRanges = append(readRanges, parser.ReadRange{
+				Name: ranges[i],
+				Mapping: parser.TrackerMapping{
+					Name:  r.Form["mappingName"][i],
+					Era:   r.Form["mappingEra"][i],
+					Notes: r.Form["mappingNotes"][i],
+					Links: r.Form["mappingLinks"][i],
+				},
+			})
+		}
+
+		spreadsheetId, ok := sheetID(r.FormValue("id"))
+		if !ok {
+			fmt.Printf("no spreadsheetId found")
+			http.Error(w, "no spreadsheetId found in link", http.StatusBadRequest)
+
+		}
+		newTracker := parser.NewTracker(r.FormValue("artist"), spreadsheetId, "idle", readRanges)
+		if err := db.UpsertTracker(r.Context(), newTracker); err != nil {
+			fmt.Printf("upsert tracker failed: %v\n", err)
+			http.Error(w, "failed to save tracker", http.StatusInternalServerError)
+			return
+		}
+		running := run.IsRunning()
+		views.Tracker(newTracker, running).Render(r.Context(), w)
+	})
+	http.HandleFunc("DELETE /tracker/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			fmt.Printf("no tracker id provided\n")
+			http.Error(w, "failed to delete tracker: no id provided", http.StatusBadRequest)
+		}
+		artistName, err := db.DeleteTracker(r.Context(), id)
+		if err != nil {
+			fmt.Printf("tracker deletion failed: %v\n", err)
+			http.Error(w, "failed to delete tracker", http.StatusInternalServerError)
+		}
+		_, err = DeleteTracksByArtist(artistName)
+		if err != nil {
+			fmt.Printf("song files deletion failed: %v\n", err)
+			http.Error(w, "failed to delete songs", http.StatusInternalServerError)
+		}
+
 	})
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
@@ -157,4 +156,46 @@ func NukeLibrary() {
 	os.Remove(dbFile)
 	os.Remove(dbFile + "-wal")
 	os.Remove(dbFile + "-shm")
+}
+
+func DeleteTracksByArtist(artist string) ([]string, error) {
+	songsDir := os.Getenv("SONGS_PATH")
+	if songsDir == "" {
+		return nil, fmt.Errorf("SONGS_PATH not set")
+	}
+
+	var deleted []string
+	err := filepath.WalkDir(songsDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".mp3" && ext != ".flac" && ext != ".m4a" && ext != ".ogg" {
+			return nil
+		}
+
+		tags, err := taglib.ReadTags(path)
+		if err != nil {
+			// skip unreadable files, or return err if you want strict
+			return nil
+		}
+
+		for _, a := range tags[taglib.Artist] {
+			if strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(artist)) {
+				if err := os.Remove(path); err != nil {
+					return fmt.Errorf("failed to remove %s: %w", path, err)
+				}
+				deleted = append(deleted, path)
+				break
+			}
+		}
+
+		return nil
+	})
+
+	return deleted, err
 }
