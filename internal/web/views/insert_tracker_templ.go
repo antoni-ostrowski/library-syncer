@@ -9,24 +9,17 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 type MappingField struct {
-	Name     string
-	Label    string
-	Required bool
-	Value    string
+	Key   string
+	Name  string
+	Label string
+	Value string
 }
 
 var MappingFields = []MappingField{
-	{Name: "era", Label: "Era", Required: true, Value: "Era"},
-	{Name: "name", Label: "Name", Required: true, Value: "Name"},
-	{Name: "notes", Label: "Notes", Required: false, Value: "Notes\n(Join the Yeat Hub Discord!)"},
-	{Name: "fileDate", Label: "File Date", Required: false, Value: "File Date"},
-	{Name: "type", Label: "Type", Required: false, Value: "Type"},
-	{Name: "availableLen", Label: "Available Length", Required: false, Value: "Available Length"},
-	{Name: "quality", Label: "Quality", Required: false, Value: "Quality"},
-	{Name: "links", Label: "Links", Required: true, Value: "Link(s)"},
-	{Name: "firstPreview", Label: "First Preview", Required: false, Value: "First Preview"},
-	{Name: "leakDate", Label: "Leak Date", Required: false, Value: "Leak Date"},
-	{Name: "ogFileLeakDate", Label: "OG File Leak Date", Required: false, Value: "OG File Leak Date"},
+	{Key: "era", Name: "mappingEra", Label: "Era", Value: "Era"},
+	{Key: "name", Name: "mappingName", Label: "Name", Value: "Name"},
+	{Key: "notes", Name: "mappingNotes", Label: "Notes", Value: "Notes (Join the Yeat Hub Discord!)"},
+	{Key: "links", Name: "mappingLinks", Label: "Links", Value: "Link(s)"},
 }
 
 func InsertTracker() templ.Component {
@@ -50,105 +43,69 @@ func InsertTracker() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm\"><form hx-post=\"/tracker\" hx-target=\"#tracker-list\" hx-on::after-request=\"this.reset()\" hx-swap=\"beforebegin\"><div class=\"grid grid-cols-1 gap-5 md:grid-cols-3\"><div class=\"md:col-span-2\"><label for=\"id\">Spreadsheet Link</label> <input type=\"text\" id=\"id\" name=\"id\" required value=\"https://docs.google.com/spreadsheets/d/1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI/edit?gid=1241081326#gid=1241081326\"></div><div><label for=\"artist\">Artist</label> <input type=\"text\" id=\"artist\" name=\"artist\" required value=\"yeat\"></div><div class=\"md:col-span-3\"><label for=\"readRanges\">Read Ranges (one per line)</label> <textarea id=\"readRanges\" name=\"readRanges\" required rows=\"3\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("Unreleased\nReleased")
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 44, Col: 91}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</textarea></div></div><fieldset class=\"mt-6\"><legend class=\"font-display mb-4 text-lg font-semibold text-white\">Column Mapping</legend><div class=\"grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm\"><form hx-post=\"/tracker\" hx-target=\"#tracker-list\" hx-on::after-request=\"this.reset()\" hx-swap=\"beforebegin\"><div class=\"grid grid-cols-1 gap-5 md:grid-cols-3\"><div class=\"md:col-span-2\"><label for=\"id\">Spreadsheet Link</label> <input type=\"text\" id=\"id\" name=\"id\" required value=\"https://docs.google.com/spreadsheets/d/1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI/edit?gid=1241081326#gid=1241081326\"></div><div><label for=\"artist\">Artist</label> <input type=\"text\" id=\"artist\" name=\"artist\" required value=\"yeat\"></div><div class=\"md:col-span-3\"><label for=\"readRanges\">Read Ranges (one per line)</label><div x-data=\"{ ranges: [{ range: '', mapping: { era: 'Era', name: 'Name', notes: 'Notes (Join the Yeat Hub Discord!)', links: 'Link(s)' } }] }\"><template x-for=\"(r, index) in ranges\" :key=\"index\"><div class=\"grid gap-2 py-4\"><input type=\"text\" name=\"range\" x-model=\"r.range\" placeholder=\"Sheet range\"><div class=\"grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, field := range MappingFields {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div><label for=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div><label>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var2 string
+			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 46, Col: 31}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</label> <input name=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue("mapping_" + field.Name)
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(field.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 52, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 47, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" x-model=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue("r.mapping." + field.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 53, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 47, Col: 72}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " ")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if field.Required {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"ml-1 text-[var(--destructive)]\">*</span>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</label> <input type=\"text\" id=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" placeholder=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue("mapping_" + field.Name)
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(field.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 58, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 47, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" name=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue("mapping_" + field.Name)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 58, Col: 87}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" value=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(field.Value)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 58, Col: 109}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div></fieldset><div class=\"mt-6\"><button type=\"submit\" class=\"btn\">Add Tracker</button></div></form></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><button class=\"btn-destructive\" type=\"button\" @click=\"ranges.splice(index, 1)\">Remove</button></div></template><button class=\"btn\" type=\"button\" @click=\"ranges.push({ range: '', mapping: { era: '', name: '', notes: '', links: '' } })\">Add read range</button></div></div></div><div class=\"mt-6\"><button type=\"submit\" class=\"btn\">Add Tracker</button></div></form></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

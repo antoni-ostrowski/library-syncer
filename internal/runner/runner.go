@@ -115,21 +115,21 @@ func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracke
 		return
 	}
 	for _, readRange := range tracker.ReadRanges {
-		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.Id, readRange)
+		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.Id, readRange.Name)
 		if err != nil {
 			fmt.Printf("failed to download source csv: %v\n", err)
 			return
 		}
 		fmt.Printf("csv at %v\n", csvPath)
 
-		sourceTracks, err := parser.Parse(csvPath, tracker)
+		sourceTracks, err := parser.Parse(csvPath, tracker.Artist, readRange.Mapping)
 		if err != nil {
 			fmt.Printf("failed to parse source csv: %v\n", err)
 			return
 		}
 		fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-		trackerUniqueDbId := tracker.Id + "#" + readRange
+		trackerUniqueDbId := tracker.Id + "#" + readRange.Name
 		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerUniqueDbId)
 		if err != nil {
 			fmt.Printf("failed to sync tracks to db: %v\n", err)

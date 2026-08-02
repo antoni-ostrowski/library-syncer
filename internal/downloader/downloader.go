@@ -31,18 +31,11 @@ var baseCoverPath = os.Getenv("ASSETS_PATH")
 type DebugLogFunc func(format string, a ...any)
 
 type Track struct {
-	Artist         string
-	Era            string
-	Name           string
-	Notes          string
-	FileDate       string
-	Type           string
-	AvailableLen   string
-	Quality        string
-	Links          string
-	FirstPreview   string
-	LeakDate       string
-	OGFileLeakDate string
+	Artist string
+	Era    string
+	Name   string
+	Notes  string
+	Links  string
 }
 
 type Source int
@@ -162,6 +155,7 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 
 	matches, err = filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
 	if err != nil {
+		fmt.Printf("failed to find the downloaded file?%v \n", err)
 		return err
 	}
 	if len(matches) == 0 {
@@ -333,18 +327,11 @@ func getTrackSlug(link string) string {
 }
 
 func writeMetadata(filepath string, t Track) error {
-
 	err := taglib.WriteTags(filepath, map[string][]string{
-		taglib.Album:     {t.Era},
-		taglib.Title:     {t.Name},
-		taglib.Artist:    {t.Artist},
-		"Notes":          {t.Notes},
-		"FileDate":       {t.FileDate},
-		"AvailableLen":   {t.AvailableLen},
-		"Quality":        {t.Quality},
-		"FirstPreview":   {t.FirstPreview},
-		"LeakDate":       {t.LeakDate},
-		"OGFileLeakDate": {t.OGFileLeakDate},
+		taglib.Album:  {t.Era},
+		taglib.Title:  {t.Name},
+		taglib.Artist: {t.Artist},
+		"COMM":        {t.Notes},
 	}, 0)
 
 	imageBytes := getImageForTrack(t, baseCoverPath)

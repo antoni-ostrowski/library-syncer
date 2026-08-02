@@ -113,7 +113,7 @@ func prepareTrack(track *downloader.Downloadable) (string, string, error) {
 }
 
 func (d *DbService) ListTrackers(ctx context.Context) ([]parser.Tracker, error) {
-	rows, err := d.db.QueryContext(ctx, "SELECT id, read_ranges, artist, mapping, status FROM trackers;")
+	rows, err := d.db.QueryContext(ctx, "SELECT id, read_ranges, artist, status FROM trackers;")
 	if err != nil {
 		return nil, err
 	}
@@ -122,15 +122,10 @@ func (d *DbService) ListTrackers(ctx context.Context) ([]parser.Tracker, error) 
 	for rows.Next() {
 		var t parser.Tracker
 		var readRangesJSON string
-		var mappingJSON string
-		if err := rows.Scan(&t.Id, &readRangesJSON, &t.Artist, &mappingJSON, &t.Status); err != nil {
+		if err := rows.Scan(&t.Id, &readRangesJSON, &t.Artist, &t.Status); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(readRangesJSON), &t.ReadRanges); err != nil {
-			return nil, err
-		}
-
-		if err := json.Unmarshal([]byte(mappingJSON), &t.Mapping); err != nil {
 			return nil, err
 		}
 
@@ -147,21 +142,15 @@ func (d *DbService) UpsertTracker(ctx context.Context, newTracker parser.Tracker
 		return err
 	}
 
-	mappingJSON, err := json.Marshal(newTracker.Mapping)
-	if err != nil {
-		return err
-	}
-
 	_, err = d.db.ExecContext(ctx, `
-		INSERT INTO trackers (id, read_ranges, artist, mapping, status)
-		VALUES (?,?,?,?,?)
+		INSERT INTO trackers (id, read_ranges, artist, status)
+		VALUES (?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 		read_ranges = EXCLUDED.read_ranges,
 		artist = EXCLUDED.artist,
-		mapping = EXCLUDED.mapping,
 		status = EXCLUDED.status;
 		`,
-		newTracker.Id, readRangesJSON, newTracker.Artist, mappingJSON, newTracker.Status)
+		newTracker.Id, readRangesJSON, newTracker.Artist, newTracker.Status)
 
 	return err
 }
@@ -178,8 +167,7 @@ func (d *DbService) DeleteTracker(ctx context.Context, trackerId string) error {
 func (d *DbService) GetTracker(ctx context.Context, trackerId string) (parser.Tracker, error) {
 	var t parser.Tracker
 	var readRangesJSON string
-	var mappingJSON string
-	err := d.db.QueryRowContext(ctx, `SELECT id, read_ranges, artist, mapping, status FROM trackers WHERE id = ?;`, trackerId).Scan(&t.Id, &readRangesJSON, &t.Artist, &mappingJSON, &t.Status)
+	err := d.db.QueryRowContext(ctx, `SELECT id, read_ranges, artist, status FROM trackers WHERE id = ?;`, trackerId).Scan(&t.Id, &readRangesJSON, &t.Artist, &t.Status)
 	if err == sql.ErrNoRows {
 		return t, err
 	}
@@ -188,10 +176,6 @@ func (d *DbService) GetTracker(ctx context.Context, trackerId string) (parser.Tr
 	}
 
 	if err := json.Unmarshal([]byte(readRangesJSON), &t.ReadRanges); err != nil {
-		return t, err
-	}
-
-	if err := json.Unmarshal([]byte(mappingJSON), &t.Mapping); err != nil {
 		return t, err
 	}
 

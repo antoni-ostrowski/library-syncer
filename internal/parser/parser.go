@@ -11,19 +11,21 @@ import (
 
 type Tracker struct {
 	Id         string
-	ReadRanges []string
+	ReadRanges []ReadRange
 	Artist     string
-	Mapping    TrackerMapping
 	Status     string
 }
+type ReadRange struct {
+	Name    string
+	Mapping TrackerMapping
+}
 
-func NewTracker(artist string, id string, readRange []string, mapping TrackerMapping, status string) Tracker {
+func NewTracker(artist string, id string, status string, readRanges []ReadRange) Tracker {
 	return Tracker{
 		Artist:     artist,
-		ReadRanges: readRange,
 		Id:         id,
-		Mapping:    mapping,
 		Status:     status,
+		ReadRanges: readRanges,
 	}
 }
 
@@ -41,7 +43,7 @@ type TrackerMapping struct {
 	OGFileLeakDate string
 }
 
-func Parse(csvPath string, tracker Tracker) ([]downloader.Downloadable, error) {
+func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping) ([]downloader.Downloadable, error) {
 	f, err := os.Open(csvPath)
 	if err != nil {
 		return nil, err
@@ -81,34 +83,23 @@ func Parse(csvPath string, tracker Tracker) ([]downloader.Downloadable, error) {
 		}
 
 		track := downloader.Track{
-			Artist:         tracker.Artist,
-			Name:           get(tracker.Mapping.Name),
-			Links:          get(tracker.Mapping.Links),
-			Era:            get(tracker.Mapping.Era),
-			Notes:          get(tracker.Mapping.Notes),
-			FileDate:       get(tracker.Mapping.FileDate),
-			Type:           get(tracker.Mapping.Type),
-			AvailableLen:   get(tracker.Mapping.AvailableLen),
-			Quality:        get(tracker.Mapping.Quality),
-			FirstPreview:   get(tracker.Mapping.FirstPreview),
-			LeakDate:       get(tracker.Mapping.LeakDate),
-			OGFileLeakDate: get(tracker.Mapping.OGFileLeakDate),
+			Artist: trackerArtist,
+			Name:   get(readRangeMapping.Name),
+			Links:  get(readRangeMapping.Links),
+			Era:    get(readRangeMapping.Era),
+			Notes:  get(readRangeMapping.Notes),
 		}
 
 		track.Name = strings.Join(strings.Fields(track.Name), " ")
 
-		linksAr := strings.Fields(track.Links)
-		for _, link := range linksAr {
-			if strings.Contains(link, "pillows.su") {
+		for link := range strings.FieldsSeq(track.Links) {
+			switch {
+			case strings.Contains(link, "pillows.su"):
 				a := &downloader.DownloadableTrack{Track: track, Url: createPillowcaseLink(link), Source: downloader.SourcePillowcase}
 				downloadables = append(downloadables, a)
-				continue
-			}
-
-			if strings.Contains(link, "soundcloud.com") {
+			case strings.Contains(link, "soundcloud.com"):
 				a := &downloader.DownloadableTrack{Track: track, Url: link, Source: downloader.SourceSc}
 				downloadables = append(downloadables, a)
-				continue
 			}
 
 		}

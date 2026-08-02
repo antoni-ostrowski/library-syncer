@@ -71,27 +71,27 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 				http.Error(w, "invalid form", http.StatusBadRequest)
 				return
 			}
-			readRanges := strings.Fields(r.FormValue("readRanges"))
-			mapping := parser.TrackerMapping{
-				Era:            r.FormValue("mapping_era"),
-				Name:           r.FormValue("mapping_name"),
-				Notes:          r.FormValue("mapping_notes"),
-				FileDate:       r.FormValue("mapping_fileDate"),
-				Type:           r.FormValue("mapping_type"),
-				AvailableLen:   r.FormValue("mapping_availableLen"),
-				Quality:        r.FormValue("mapping_quality"),
-				Links:          r.FormValue("mapping_links"),
-				FirstPreview:   r.FormValue("mapping_firstPreview"),
-				LeakDate:       r.FormValue("mapping_leakDate"),
-				OGFileLeakDate: r.FormValue("mapping_ogFileLeakDate"),
+			ranges := r.Form["range"]
+			var readRanges []parser.ReadRange
+			for i := range ranges {
+				readRanges = append(readRanges, parser.ReadRange{
+					Name: ranges[i],
+					Mapping: parser.TrackerMapping{
+						Name:  r.Form["mappingName"][i],
+						Era:   r.Form["mappingEra"][i],
+						Notes: r.Form["mappingNotes"][i],
+						Links: r.Form["mappingLinks"][i],
+					},
+				})
 			}
+
 			spreadsheetId, ok := sheetID(r.FormValue("id"))
 			if !ok {
 				fmt.Printf("no spreadsheetId found")
 				http.Error(w, "no spreadsheetId found in link", http.StatusBadRequest)
 
 			}
-			newTracker := parser.NewTracker(r.FormValue("artist"), spreadsheetId, readRanges, mapping, "idle")
+			newTracker := parser.NewTracker(r.FormValue("artist"), spreadsheetId, "idle", readRanges)
 			if err := db.UpsertTracker(r.Context(), newTracker); err != nil {
 				fmt.Printf("upsert tracker failed: %v\n", err)
 				http.Error(w, "failed to save tracker", http.StatusInternalServerError)
