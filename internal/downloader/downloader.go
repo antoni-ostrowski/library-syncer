@@ -236,7 +236,7 @@ func downloadFile(link string, track Track, outputDir string, debugLog DebugLogF
 	}
 
 	if strings.HasSuffix(finalName, ".mp4") {
-		err := processVideoToAudio(finalName, debugLog)
+		err := convertToMP3(finalName, debugLog)
 		if err == nil {
 			finalName = strings.TrimSuffix(finalName, ".mp4") + ".mp3"
 		} else {
@@ -250,39 +250,69 @@ func downloadFile(link string, track Track, outputDir string, debugLog DebugLogF
 
 func getImageForTrack(track Track, base string) []byte {
 	era := strings.TrimSpace(track.Era)
-	imagePath := path.Join(base, era+".jpg")
 
-	imgData, err := os.ReadFile(imagePath)
-	if err != nil {
-		imgData, err = os.ReadFile(path.Join(base, "default.jpg"))
-		if err != nil {
-			return []byte{}
-		}
+	if imgData, ok := readImageByStem(base, era); ok {
+		return imgData
 	}
 
+	imgData, _ := readImageByStem(base, "default")
 	return imgData
 }
 
-func processVideoToAudio(mp4Path string, debugLog DebugLogFunc) error {
-	// 1. Create the new filename by replacing .mp4 with .mp3
-	mp3Path := strings.TrimSuffix(mp4Path, ".mp4") + ".mp3"
+func readImageByStem(base, stem string) ([]byte, bool) {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return nil, false
+	}
 
-	// 2. Run FFmpeg
-	// -i: input
-	// -vn: no video
-	// -y: overwrite mp3 if it already exists
-	cmd := exec.Command("ffmpeg", "-i", mp4Path, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "192k", "-y", mp3Path)
+	for _, entry := range entries {
+		// Match the requested filename stem while allowing any image extension.
+		if entry.IsDir() || filepath.Ext(entry.Name()) == "" {
+			continue
+		}
+		if strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())) != stem {
+			continue
+		}
 
-	debugLog("Converting %s to MP3...\n", mp4Path)
+		imgData, err := os.ReadFile(path.Join(base, entry.Name()))
+		if err == nil {
+			return imgData, true
+		}
+	}
+
+	return nil, false
+}
+
+func convertToMP3(inputPath string, debugLog DebugLogFunc) error {
+	mp3Path := strings.TrimSuffix(inputPath, filepath.Ext(inputPath)) + ".mp3"
+
+	// -i reads the source file; -map selects its first audio stream; -vn drops
+	// video and embedded cover streams; -map_metadata and -map_chapters prevent
+	// source metadata from being copied; the remaining options normalize audio
+	// to stereo 44.1 kHz MP3 at 192 kbps; -y permits replacing an existing MP3.
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i", inputPath,
+		"-map", "0:a:0",
+		"-vn",
+		"-map_metadata", "-1",
+		"-map_chapters", "-1",
+		"-ar", "44100",
+		"-ac", "2",
+		"-b:a", "192k",
+		"-y", mp3Path,
+	)
+
+	debugLog("Converting %s to MP3...\n", inputPath)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("conversion failed: %v", err)
 	}
 
-	// 3. Delete the original MP4 file to "replace" it
-	err = os.Remove(mp4Path)
+	// Delete the source only after FFmpeg has produced a valid output.
+	err = os.Remove(inputPath)
 	if err != nil {
-		return fmt.Errorf("could not delete original mp4: %v", err)
+		return fmt.Errorf("could not delete original file: %v", err)
 	}
 
 	debugLog("Success! File replaced with MP3.\n")
@@ -326,8 +356,17 @@ func getTrackSlug(link string) string {
 	return "---" + slug
 }
 
-func writeMetadata(filepath string, t Track) error {
-	existing, _ := taglib.ReadTags(filepath)
+func writeMetadata(filePath string, t Track) error {
+	if strings.ToLower(filepath.Ext(filePath)) != ".mp3" {
+		if err := convertToMP3(filePath, func(format string, args ...any) {
+			fmt.Printf(format, args...)
+		}); err != nil {
+			return fmt.Errorf("convert to mp3: %w", err)
+		}
+		filePath = strings.TrimSuffix(filePath, filepath.Ext(filePath)) + ".mp3"
+	}
+
+	existing, _ := taglib.ReadTags(filePath)
 
 	tags := map[string][]string{
 		taglib.Album:           {t.Era},
@@ -357,13 +396,13 @@ func writeMetadata(filepath string, t Track) error {
 		tags[taglib.OriginalDate] = ogDate
 	}
 
-	if err := taglib.WriteTags(filepath, tags, taglib.Clear); err != nil {
+	if err := taglib.WriteTags(filePath, tags, taglib.Clear); err != nil {
 		return fmt.Errorf("write tags: %w", err)
 	}
 
 	imageBytes := getImageForTrack(t, baseCoverPath)
 	if len(imageBytes) > 0 {
-		if err := taglib.WriteImage(filepath, imageBytes); err != nil {
+		if err := taglib.WriteImage(filePath, imageBytes); err != nil {
 			return fmt.Errorf("write image: %w", err)
 		}
 	}
