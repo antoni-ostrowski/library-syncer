@@ -98,16 +98,15 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 		debugLog("Failed to download file %v \n", err)
 		return err
 	}
+	err = Amplify(finalName)
+	if err != nil {
+		debugLog("failed to amplify track: %v\n", err)
+		return err
+	}
 
 	err = writeMetadata(finalName, t)
 	if err != nil {
 		debugLog("Failed to write metadata %v \n", err)
-		return err
-	}
-
-	err = Amplify(finalName)
-	if err != nil {
-		debugLog("failed to amplify track: %v\n", err)
 		return err
 	}
 
@@ -169,17 +168,18 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 	}
 	finalPath := matches[0]
 
+	err = Amplify(finalPath)
+	if err != nil {
+		debugLog("failed to amplify track: %v\n", err)
+		return err
+	}
+
 	err = writeMetadata(finalPath, t)
 	if err != nil {
 		debugLog("Failed to write metadata %v \n", err)
 		return err
 	}
 
-	err = Amplify(finalPath)
-	if err != nil {
-		debugLog("failed to amplify track: %v\n", err)
-		return err
-	}
 	debugLog("successfully downloaded %v \n", t.Name)
 
 	return nil
@@ -398,9 +398,16 @@ func Amplify(path string) error {
 	cmd := exec.Command(
 		"ffmpeg",
 		"-i", path,
+		"-map", "0:a:0",
+		"-map", "0:v?",
+		"-map_metadata", "0",
+		"-map_chapters", "0",
 		"-filter:a", "volume=7.0dB,alimiter=limit=0.95",
 		"-c:a", "libmp3lame",
 		"-b:a", "320k",
+		"-c:v", "copy",
+		"-disposition:v", "attached_pic",
+		"-id3v2_version", "3",
 		"-y", tmpPath,
 	)
 	out, err := cmd.CombinedOutput()
