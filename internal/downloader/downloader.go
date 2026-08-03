@@ -98,10 +98,6 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 		debugLog("Failed to download file %v \n", err)
 		return err
 	}
-	finalName, err = Amplify(finalName)
-	if err != nil {
-		return err
-	}
 
 	err = writeMetadata(finalName, t)
 	if err != nil {
@@ -166,11 +162,6 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 		return fmt.Errorf("no downloaded file found for %s", t.Name)
 	}
 	finalName := matches[0]
-
-	finalName, err = Amplify(finalName)
-	if err != nil {
-		return err
-	}
 
 	err = writeMetadata(finalName, t)
 	if err != nil {
@@ -378,55 +369,4 @@ func writeMetadata(filepath string, t Track) error {
 	}
 
 	return nil
-}
-
-// AmplifyMP3 makes the file 7 dB louder with a limiter and replaces the
-// original via a temp file (so the change looks "in-place").
-func Amplify(inputPath string) (string, error) {
-	dir := filepath.Dir(inputPath)
-	outputPath := strings.TrimSuffix(inputPath, filepath.Ext(inputPath)) + ".mp3"
-
-	tmp, err := os.CreateTemp(dir, "*.mp3")
-	if err != nil {
-		return "", fmt.Errorf("create temp: %w", err)
-	}
-
-	tmpPath := tmp.Name()
-	tmp.Close()
-
-	defer func() {
-		if _, err := os.Stat(tmpPath); err == nil {
-			_ = os.Remove(tmpPath)
-		}
-	}()
-
-	cmd := exec.Command(
-		"ffmpeg",
-		"-i", inputPath,
-		"-map", "0:a:0",
-		"-map", "0:v?",
-		"-map_metadata", "0",
-		"-map_chapters", "0",
-		"-filter:a", "volume=7.0dB,alimiter=limit=0.95",
-		"-c:a", "libmp3lame",
-		"-b:a", "320k",
-		"-c:v", "copy",
-		"-disposition:v", "attached_pic",
-		"-id3v2_version", "3",
-		"-y", tmpPath,
-	)
-
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("ffmpeg failed: %w\n%s", err, out)
-	}
-
-	if err := os.Rename(tmpPath, outputPath); err != nil {
-		return "", fmt.Errorf("rename output: %w", err)
-	}
-
-	if inputPath != outputPath {
-		_ = os.Remove(inputPath)
-	}
-
-	return outputPath, nil
 }
