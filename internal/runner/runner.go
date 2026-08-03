@@ -39,7 +39,7 @@ func New(db *db.DbService, sleepSec int, devMode bool) *Runner {
 }
 
 func (r *Runner) Start(ctx context.Context) {
-	downloader.DownloadTracks(ctx, r.devMode, r.tracksToDownload)
+	downloader.StartWorkers(ctx, r.devMode, r.tracksToDownload)
 	timer := time.NewTicker(r.sleepDuration)
 	defer timer.Stop()
 	for {

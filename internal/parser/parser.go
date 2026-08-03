@@ -73,7 +73,7 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 	headerIdx := map[string]int{}
 	// map each column to int
 	for i, h := range headers {
-		headerIdx[h] = i
+		headerIdx[normalizeColumn(h)] = i
 	}
 
 	var downloadables []downloader.Downloadable
@@ -88,7 +88,7 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 
 		get := func(col string) string {
 			// get the index of column, retrieve data from row with that index
-			if i, ok := headerIdx[col]; ok && i < len(row) {
+			if i, ok := headerIdx[normalizeColumn(col)]; ok && i < len(row) {
 				return row[i]
 			}
 			return ""

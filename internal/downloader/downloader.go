@@ -186,7 +186,7 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 
 }
 
-func DownloadTracks(ctx context.Context, devMode bool, tracksToDownload <-chan Downloadable) {
+func StartWorkers(ctx context.Context, devMode bool, tracksToDownload <-chan Downloadable) {
 	workerCount := GetWorkerCount()
 	for id := range workerCount {
 		go func(id int) {
