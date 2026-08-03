@@ -98,9 +98,8 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 		debugLog("Failed to download file %v \n", err)
 		return err
 	}
-	err = Amplify(finalName)
+	finalName, err = Amplify(finalName)
 	if err != nil {
-		debugLog("failed to amplify track: %v\n", err)
 		return err
 	}
 
@@ -166,15 +165,14 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 	if len(matches) == 0 {
 		return fmt.Errorf("no downloaded file found for %s", t.Name)
 	}
-	finalPath := matches[0]
+	finalName := matches[0]
 
-	err = Amplify(finalPath)
+	finalName, err = Amplify(finalName)
 	if err != nil {
-		debugLog("failed to amplify track: %v\n", err)
 		return err
 	}
 
-	err = writeMetadata(finalPath, t)
+	err = writeMetadata(finalName, t)
 	if err != nil {
 		debugLog("Failed to write metadata %v \n", err)
 		return err
@@ -368,36 +366,43 @@ func writeMetadata(filepath string, t Track) error {
 		tags[taglib.OriginalDate] = ogDate
 	}
 
-	err := taglib.WriteTags(filepath, tags, taglib.Clear)
+	if err := taglib.WriteTags(filepath, tags, taglib.Clear); err != nil {
+		return fmt.Errorf("write tags: %w", err)
+	}
 
 	imageBytes := getImageForTrack(t, baseCoverPath)
-	err = taglib.WriteImage(filepath, imageBytes)
+	if len(imageBytes) > 0 {
+		if err := taglib.WriteImage(filepath, imageBytes); err != nil {
+			return fmt.Errorf("write image: %w", err)
+		}
+	}
 
-	return err
-
+	return nil
 }
 
 // AmplifyMP3 makes the file 7 dB louder with a limiter and replaces the
 // original via a temp file (so the change looks "in-place").
-func Amplify(path string) error {
-	dir := filepath.Dir(path)
+func Amplify(inputPath string) (string, error) {
+	dir := filepath.Dir(inputPath)
+	outputPath := strings.TrimSuffix(inputPath, filepath.Ext(inputPath)) + ".mp3"
+
 	tmp, err := os.CreateTemp(dir, "*.mp3")
 	if err != nil {
-		return fmt.Errorf("create temp: %w", err)
+		return "", fmt.Errorf("create temp: %w", err)
 	}
+
 	tmpPath := tmp.Name()
 	tmp.Close()
 
-	// clean up temp on failure
 	defer func() {
 		if _, err := os.Stat(tmpPath); err == nil {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
 	cmd := exec.Command(
 		"ffmpeg",
-		"-i", path,
+		"-i", inputPath,
 		"-map", "0:a:0",
 		"-map", "0:v?",
 		"-map_metadata", "0",
@@ -410,15 +415,18 @@ func Amplify(path string) error {
 		"-id3v2_version", "3",
 		"-y", tmpPath,
 	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ffmpeg failed: %w\n%s", err, out)
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("ffmpeg failed: %w\n%s", err, out)
 	}
 
-	// atomic-ish rename across the same dir
-	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("rename temp over original: %w", err)
+	if err := os.Rename(tmpPath, outputPath); err != nil {
+		return "", fmt.Errorf("rename output: %w", err)
 	}
 
-	return nil
+	if inputPath != outputPath {
+		_ = os.Remove(inputPath)
+	}
+
+	return outputPath, nil
 }
