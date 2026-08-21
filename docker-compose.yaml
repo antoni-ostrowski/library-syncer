@@ -1,0 +1,7 @@
+services:
+  syncer:
+    build: .
+    restart: unless-stopped 
+    volumes:
+      - ${DATA}:/app/data
+
