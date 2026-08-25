@@ -14,3 +14,6 @@ services:
       - type: bind
         source: ${DATA}
         target: /app/data
+      - type: bind
+        source: ${SONGS_PATH}
+        target: ${VOLUME_SONGS_PATH}
