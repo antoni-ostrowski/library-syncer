@@ -43,7 +43,7 @@ func InsertTracker() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm\"><form hx-post=\"/tracker\" hx-target=\"#tracker-list\" hx-on::after-request=\"this.reset()\" hx-swap=\"beforeend\"><div class=\"grid grid-cols-1 gap-5 md:grid-cols-3\"><div class=\"md:col-span-2\"><label for=\"id\">Spreadsheet Link</label> <input type=\"text\" id=\"id\" name=\"id\" required value=\"https://docs.google.com/spreadsheets/d/1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI/edit?gid=1241081326#gid=1241081326\"></div><div><label for=\"artist\">Artist</label> <input type=\"text\" id=\"artist\" name=\"artist\" required value=\"yeat\"></div><div class=\"md:col-span-3\"><div x-data=\"{ ranges: [{ range: 'Unreleased', mapping: { era: 'Era', name: 'Name', notes: 'Notes (Join the Yeat Hub Discord!)', links: 'Link(s)' } }] }\"><template x-for=\"(r, index) in ranges\" :key=\"index\"><div class=\"grid gap-2 py-4\"><label for=\"readRanges\">Read Ranges</label> <input type=\"text\" name=\"range\" x-model=\"r.range\" placeholder=\"Sheet range\"><div class=\"grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form hx-post=\"/tracker\" hx-target=\"#tracker-list\" hx-on::after-request=\"this.reset()\" hx-swap=\"beforeend\"><div class=\"form-grid\"><div><label for=\"id\">Spreadsheet Link</label> <input type=\"text\" id=\"id\" name=\"id\" required value=\"https://docs.google.com/spreadsheets/d/1FUzAZyTCgFTVxQ--qbCAS2bUk4dsAw6ASxwjURPHbyI/edit?gid=1241081326#gid=1241081326\"></div><div><label for=\"artist\">Artist</label> <input type=\"text\" id=\"artist\" name=\"artist\" required value=\"yeat\"></div></div><div x-data=\"{ ranges: [{ range: 'Unreleased', mapping: { era: 'Era', name: 'Name', notes: 'Notes (Join the Yeat Hub Discord!)', links: 'Link(s)' } }] }\"><template x-for=\"(r, index) in ranges\" :key=\"index\"><div class=\"range-block\"><label for=\"readRanges\">Read Ranges</label> <input type=\"text\" name=\"range\" x-model=\"r.range\" placeholder=\"Sheet range\"><div class=\"form-grid\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -55,7 +55,7 @@ func InsertTracker() templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 46, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 45, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -68,7 +68,7 @@ func InsertTracker() templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(field.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 47, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 46, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -81,7 +81,7 @@ func InsertTracker() templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue("r.mapping." + field.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 47, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 46, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -94,7 +94,7 @@ func InsertTracker() templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(field.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 47, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/insert_tracker.templ`, Line: 46, Col: 97}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -105,7 +105,7 @@ func InsertTracker() templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><button class=\"btn-destructive\" type=\"button\" @click=\"ranges.splice(index, 1)\">Remove</button></div></template><button class=\"btn\" type=\"button\" @click=\"ranges.push({ range: '', mapping: { era: '', name: '', notes: '', links: '' } })\">Add read range</button></div></div></div><div class=\"mt-6\"><button type=\"submit\" class=\"btn\">Add Tracker</button></div></form></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><button class=\"btn-danger\" type=\"button\" @click=\"ranges.splice(index, 1)\">Remove</button></div></template><button class=\"btn\" type=\"button\" @click=\"ranges.push({ range: '', mapping: { era: '', name: '', notes: '', links: '' } })\">Add read range</button></div><div class=\"form-actions\"><button type=\"submit\" class=\"btn\">Add Tracker</button></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
