@@ -80,10 +80,9 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 
 	debugLog("processing %v \n", t.Name)
 	tId := getTrackId(link)
-	matches, err := filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
-	if err == nil && len(matches) > 0 {
+	if alreadyDownloaded(outputDir, t.Name+tId) {
 		debugLog("File %s already exists, skipping...\n", t.Name)
-		return err
+		return nil
 	}
 
 	if len(link) == 0 {
@@ -97,6 +96,11 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 	if err != nil {
 		debugLog("Failed to download file %v \n", err)
 		return err
+	}
+
+	finalName, err = applySnippetIfNeeded(finalName, &t, debugLog)
+	if err != nil {
+		debugLog("snippet handling failed: %v\n", err)
 	}
 
 	err = writeMetadata(finalName, t)
@@ -125,8 +129,7 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 
 	debugLog("processing %v \n", t.Name)
 	tId := getTrackSlug(link)
-	matches, err := filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
-	if err == nil && len(matches) > 0 {
+	if alreadyDownloaded(outputDir, t.Name+tId) {
 		debugLog("File %s already exists, skipping...\n", t.Name)
 		return nil
 	}
@@ -153,15 +156,24 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 		fmt.Println("yt-dlp failed:", err)
 	}
 
-	matches, err = filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
+	matches, err := filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
 	if err != nil {
 		fmt.Printf("failed to find the downloaded file?%v \n", err)
 		return err
+	}
+	// also check Snippet variant produced by previous snippet run
+	if len(matches) == 0 {
+		matches, _ = filepath.Glob(filepath.Join(outputDir, t.Name+tId+"Snippet.*"))
 	}
 	if len(matches) == 0 {
 		return fmt.Errorf("no downloaded file found for %s", t.Name)
 	}
 	finalName := matches[0]
+
+	finalName, err = applySnippetIfNeeded(finalName, &t, debugLog)
+	if err != nil {
+		debugLog("snippet handling failed: %v\n", err)
+	}
 
 	err = writeMetadata(finalName, t)
 	if err != nil {
@@ -250,13 +262,86 @@ func downloadFile(link string, track Track, outputDir string, debugLog DebugLogF
 
 func getImageForTrack(track Track, base string) []byte {
 	era := strings.TrimSpace(track.Era)
+	// lookup cover by base era without Snippets suffix so snippets share same art
+	baseEra := strings.TrimSuffix(era, " Snippets")
+	baseEra = strings.TrimSpace(baseEra)
 
 	if imgData, ok := readImageByStem(base, era); ok {
 		return imgData
 	}
+	if baseEra != era {
+		if imgData, ok := readImageByStem(base, baseEra); ok {
+			return imgData
+		}
+	}
 
 	imgData, _ := readImageByStem(base, "default")
 	return imgData
+}
+
+func probeDurationSeconds(filePath string) (float64, error) {
+	cmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", filePath)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+	s := strings.TrimSpace(string(out))
+	if s == "" || s == "N/A" {
+		return 0, fmt.Errorf("no duration")
+	}
+	return strconv.ParseFloat(s, 64)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func alreadyDownloaded(outputDir, baseName string) bool {
+	// matches baseName.* and baseNameSnippet.*
+	matches, err := filepath.Glob(filepath.Join(outputDir, baseName+".*"))
+	if err == nil && len(matches) > 0 {
+		return true
+	}
+	matches, err = filepath.Glob(filepath.Join(outputDir, baseName+"Snippet.*"))
+	if err == nil && len(matches) > 0 {
+		return true
+	}
+	return false
+}
+
+func applySnippetIfNeeded(filePath string, t *Track, debugLog DebugLogFunc) (string, error) {
+	dur, err := probeDurationSeconds(filePath)
+	if err != nil {
+		debugLog("probe duration failed for %s: %v\n", filePath, err)
+		return filePath, nil
+	}
+	debugLog("duration for %s: %.2fs\n", filepath.Base(filePath), dur)
+	if dur >= 60 || dur <= 0 {
+		return filePath, nil
+	}
+	// Album: "Album" -> "Album Snippets"
+	if !strings.HasSuffix(t.Era, " Snippets") {
+		t.Era = strings.TrimSpace(t.Era) + " Snippets"
+	}
+	// Filename: currentCalculatedFilename -> currentCalculatedFilenameSnippet.mp3
+	ext := filepath.Ext(filePath)
+	base := strings.TrimSuffix(filePath, ext)
+	if !strings.HasSuffix(base, "Snippet") {
+		newPath := base + "Snippet" + ext
+		// avoid collision
+		if fileExists(newPath) {
+			debugLog("snippet target already exists %s, removing original\n", newPath)
+			_ = os.Remove(filePath)
+			return newPath, nil
+		}
+		if err := os.Rename(filePath, newPath); err != nil {
+			return filePath, fmt.Errorf("rename to snippet: %w", err)
+		}
+		debugLog("renamed snippet %s -> %s\n", filepath.Base(filePath), filepath.Base(newPath))
+		filePath = newPath
+	}
+	return filePath, nil
 }
 
 func readImageByStem(base, stem string) ([]byte, bool) {
