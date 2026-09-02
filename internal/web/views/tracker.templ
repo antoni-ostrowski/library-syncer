@@ -32,6 +32,7 @@ templ Tracker(m parser.Tracker, isRunning bool) {
 			} else {
 				<button class="btn" hx-post={ "/run/" + m.Id } hx-swap="none">Trigger run</button>
 			}
+			<button class="btn" hx-post={ "/tracker/" + m.Id + "/reset" } hx-swap="none">Reset</button>
 			<button class="btn-destructive" hx-delete={ "/tracker/" + m.Id } hx-target="#tracker-list">Delete</button>
 		</div>
 	</div>

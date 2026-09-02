@@ -97,18 +97,58 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		if id == "" {
 			fmt.Printf("no tracker id provided\n")
 			http.Error(w, "failed to delete tracker: no id provided", http.StatusBadRequest)
+			return
 		}
 		artistName, err := db.DeleteTracker(r.Context(), id)
 		if err != nil {
 			fmt.Printf("tracker deletion failed: %v\n", err)
 			http.Error(w, "failed to delete tracker", http.StatusInternalServerError)
+			return
 		}
 		_, err = DeleteTracksByArtist(artistName)
 		if err != nil {
 			fmt.Printf("song files deletion failed: %v\n", err)
 			http.Error(w, "failed to delete songs", http.StatusInternalServerError)
+			return
 		}
+		w.WriteHeader(http.StatusOK)
+	})
 
+	http.HandleFunc("POST /tracker/{id}/reset", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			http.Error(w, "no tracker id provided", http.StatusBadRequest)
+			return
+		}
+		tracker, err := db.GetTracker(r.Context(), id)
+		if err != nil {
+			fmt.Printf("reset: failed to get tracker %s: %v\n", id, err)
+			http.Error(w, "tracker not found", http.StatusNotFound)
+			return
+		}
+		deleted, err := DeleteTracksByArtist(tracker.Artist)
+		if err != nil {
+			fmt.Printf("reset: song files deletion failed: %v\n", err)
+			http.Error(w, "failed to delete songs", http.StatusInternalServerError)
+			return
+		}
+		fmt.Printf("reset: deleted %d files for artist %s\n", len(deleted), tracker.Artist)
+
+		tracks, err := db.GetTracksForTracker(r.Context(), id)
+		if err != nil {
+			fmt.Printf("reset: failed to load tracks for %s: %v\n", id, err)
+			http.Error(w, "failed to load tracks", http.StatusInternalServerError)
+			return
+		}
+		if len(tracks) == 0 {
+			fmt.Printf("reset: no tracks in DB for %s — nothing to requeue\n", id)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		n := run.Enqueue(tracks)
+		fmt.Printf("reset: requeued %d/%d tracks for %s\n", n, len(tracks), tracker.Artist)
+		w.Header().Set("HX-Trigger", "refreshList")
+		w.WriteHeader(http.StatusAccepted)
 	})
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {

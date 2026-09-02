@@ -71,6 +71,21 @@ func (r *Runner) IsRunning() bool {
 	return r.running.Load()
 }
 
+func (r *Runner) Enqueue(tracks []downloader.Downloadable) int {
+	count := 0
+	for _, t := range tracks {
+		select {
+		case r.tracksToDownload <- t:
+			count++
+		default:
+			// channel full — block briefly to avoid dropping
+			r.tracksToDownload <- t
+			count++
+		}
+	}
+	return count
+}
+
 func (r *Runner) runTracker(ctx context.Context, trackerId string) {
 	if !r.running.CompareAndSwap(false, true) {
 		return

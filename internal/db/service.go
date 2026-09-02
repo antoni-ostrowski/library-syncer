@@ -189,3 +189,27 @@ func (d *DbService) GetTracker(ctx context.Context, trackerId string) (parser.Tr
 	return t, err
 
 }
+
+func (d *DbService) GetTracksForTracker(ctx context.Context, trackerId string) ([]downloader.Downloadable, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT metadata FROM tracks WHERE tracker_id LIKE ?;`, trackerId+"#%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []downloader.Downloadable
+	for rows.Next() {
+		var meta string
+		if err := rows.Scan(&meta); err != nil {
+			return nil, err
+		}
+		var dt downloader.DownloadableTrack
+		if err := json.Unmarshal([]byte(meta), &dt); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal track metadata: %w", err)
+		}
+		// copy to heap so each pointer is distinct
+		track := dt
+		result = append(result, &track)
+	}
+	return result, rows.Err()
+}
