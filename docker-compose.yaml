@@ -5,11 +5,8 @@ services:
     environment:
       DB_PATH: ${DB_PATH}
       SONGS_PATH: /app/songs
-      SECRETS_PATH: ${SECRETS_PATH}
       WORKER_COUNT: ${WORKER_COUNT}
-      ASSETS_PATH: ${ASSETS_PATH}
       SLEEP_SEC: ${SLEEP_SEC}
-      SHEETS_PATH: ${SHEETS_PATH}
     volumes:
       - type: bind
         source: ${DATA}

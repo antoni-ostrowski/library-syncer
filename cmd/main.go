@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/antoni-ostrowski/library-syncer/internal/config"
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/runner"
 	"github.com/antoni-ostrowski/library-syncer/internal/web"
@@ -31,11 +32,8 @@ func runConfig() (int, bool, *db.DbService) {
 	requiredEnvs := []string{
 		"DB_PATH",
 		"SONGS_PATH",
-		"SECRETS_PATH",
 		"WORKER_COUNT",
-		"ASSETS_PATH",
 		"SLEEP_SEC",
-		"SHEETS_PATH",
 	}
 	sleepSec, err := strconv.Atoi(os.Getenv("SLEEP_SEC"))
 	if err != nil {
@@ -62,8 +60,8 @@ func runConfig() (int, bool, *db.DbService) {
 
 	db := db.NewDbService(dbConn)
 
-	clearSheetsDir(os.Getenv("SHEETS_PATH"))
-	toCreate := []string{trackOutputDir, os.Getenv("SECRETS_PATH"), os.Getenv("SHEETS_PATH")}
+	clearSheetsDir(config.SheetsPath())
+	toCreate := []string{trackOutputDir, config.SecretsPath(), config.SheetsPath()}
 
 	for _, v := range toCreate {
 		if err := os.MkdirAll(v, 0755); err != nil {

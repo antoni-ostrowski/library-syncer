@@ -12,19 +12,20 @@ import (
 	"strings"
 	"time"
 
+	appcfg "github.com/antoni-ostrowski/library-syncer/internal/config"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
 
-var tokenPath = path.Join(os.Getenv("SECRETS_PATH"), "token.json")
+var tokenPath = path.Join(appcfg.SecretsPath(), "token.json")
 
 func DownloadSourceCsv(ctx context.Context, spreadsheetID string, readRange string) (string, error) {
-	sheetsPath := os.Getenv("SHEETS_PATH")
+	sheetsPath := appcfg.SheetsPath()
 	outputPath := path.Join(sheetsPath, spreadsheetID+readRange)
 	fmt.Printf("---downloading source csv file... \n")
-	credPath := path.Join(os.Getenv("SECRETS_PATH"), "credentials.json")
+	credPath := path.Join(appcfg.SecretsPath(), "credentials.json")
 	b, err := os.ReadFile(credPath)
 	if err != nil {
 		log.Printf("unable to read credentials: %v", err)
@@ -99,7 +100,7 @@ func getClient(ctx context.Context, config *oauth2.Config) *http.Client {
 }
 
 func getTokenFromWeb(ctx context.Context, config *oauth2.Config) *oauth2.Token {
-	path := path.Join(os.Getenv("SECRETS_PATH"), "code.txt")
+	path := path.Join(appcfg.SecretsPath(), "code.txt")
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 
 	fmt.Printf("Go to this URL in your browser and authorize the app:\n%s\n", authURL)

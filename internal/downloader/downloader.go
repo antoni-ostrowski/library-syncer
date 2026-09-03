@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/antoni-ostrowski/library-syncer/internal/config"
 	"go.senan.xyz/taglib"
 )
 
@@ -25,8 +26,6 @@ const (
 	Cyan    = "\033[36m"
 	Reset   = "\033[0m"
 )
-
-var baseCoverPath = os.Getenv("ASSETS_PATH")
 
 type DebugLogFunc func(format string, a ...any)
 
@@ -485,7 +484,7 @@ func writeMetadata(filePath string, t Track) error {
 		return fmt.Errorf("write tags: %w", err)
 	}
 
-	imageBytes := getImageForTrack(t, baseCoverPath)
+	imageBytes := getImageForTrack(t, config.AssetsPath())
 	if len(imageBytes) > 0 {
 		if err := taglib.WriteImage(filePath, imageBytes); err != nil {
 			return fmt.Errorf("write image: %w", err)
