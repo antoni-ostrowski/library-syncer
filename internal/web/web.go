@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/antoni-ostrowski/library-syncer/internal/config"
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 	"github.com/antoni-ostrowski/library-syncer/internal/runner"
@@ -174,10 +175,7 @@ func NukeLibrary() {
 		log.Fatal("SONGS_PATH not set")
 	}
 
-	dbDir := os.Getenv("DB_PATH")
-	if dbDir == "" {
-		log.Fatal("DB_PATH not set")
-	}
+	dbDir := config.DbPath()
 
 	entries, err := os.ReadDir(songsDir)
 	if err != nil {

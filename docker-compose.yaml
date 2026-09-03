@@ -3,7 +3,6 @@ services:
     build: .
     restart: unless-stopped 
     environment:
-      DB_PATH: ${DB_PATH}
       SONGS_PATH: /app/songs
       WORKER_COUNT: ${WORKER_COUNT}
       SLEEP_SEC: ${SLEEP_SEC}

@@ -30,7 +30,6 @@ func main() {
 func runConfig() (int, bool, *db.DbService) {
 	loadEnv(".env.local")
 	requiredEnvs := []string{
-		"DB_PATH",
 		"SONGS_PATH",
 		"WORKER_COUNT",
 		"SLEEP_SEC",
