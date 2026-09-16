@@ -1,123 +1,65 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"flag"
-	"fmt"
+	"errors"
 	"log"
+	"log/slog"
+	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/config"
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/runner"
-	"github.com/antoni-ostrowski/library-syncer/internal/web"
+	"github.com/antoni-ostrowski/library-syncer/internal/web/handlers"
 )
 
 func main() {
-	sleepSec, devMode, db := runConfig()
-	run := runner.New(db, sleepSec, devMode)
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	cfg := config.RunConfig()
+	dbSvc := db.NewDbService(cfg.DB)
+	run := runner.New(dbSvc, cfg.SleepSec, cfg.DevMode)
 	go run.Start(ctx)
 	run.Trigger(runner.Cmd{Type: runner.CmdTypeRunAll})
-	go web.StartHttpServer(db, run)
-	select {}
-}
 
-func runConfig() (int, bool, *db.DbService) {
-	loadEnv(".env.local")
-	requiredEnvs := []string{
-		"SONGS_PATH",
-		"WORKER_COUNT",
-		"SLEEP_SEC",
+	mux := http.NewServeMux()
+	handlers.Register(mux, dbSvc, run)
+
+	srv := http.Server{
+		Addr:              ":3000",
+		Handler:           mux,
+		ReadHeaderTimeout: time.Second * 5,
 	}
-	sleepSec, err := strconv.Atoi(os.Getenv("SLEEP_SEC"))
-	if err != nil {
-		fmt.Printf("Startup Error: incorrect sleep sec env value, expected number: %v\n", err)
-		os.Exit(1)
-	}
+	srvErr := make(chan error, 1)
+	go func() {
+		slog.Info("listening", "address", "http://localhost:3000")
+		srvErr <- srv.ListenAndServe()
+	}()
 
-	var trackOutputDir = os.Getenv("SONGS_PATH")
-
-	if err := ValidateEnvs(requiredEnvs); err != nil {
-		fmt.Printf("Startup Error: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Environment configuration loaded successfully.")
-
-	devMode := flag.Bool("d", false, "dev mode (only download sample size + 1 loop iteration)")
-	flag.Parse()
-
-	dbConn, err := db.OpenDb()
-	if err != nil {
-		log.Fatalf("failed to connect to database: %v\n", err.Error())
-	}
-
-	db := db.NewDbService(dbConn)
-
-	clearSheetsDir(config.SheetsPath())
-	toCreate := []string{trackOutputDir, config.SecretsPath(), config.SheetsPath()}
-
-	for _, v := range toCreate {
-		if err := os.MkdirAll(v, 0755); err != nil {
-			log.Fatalf("failed to create dir: %v", err)
+	select {
+	case err := <-srvErr:
+		// Startup failed: nothing to drain, and the pool never served
+		// traffic, so exiting directly is safe.
+		stop()
+		if !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("server error", "err", err)
+			os.Exit(1)
 		}
-
-	}
-
-	fmt.Printf("dev mode %v\n", *devMode)
-
-	return sleepSec, *devMode, db
-
-}
-
-func ValidateEnvs(required []string) error {
-	var missing []string
-
-	for _, env := range required {
-		if strings.TrimSpace(os.Getenv(env)) == "" {
-			missing = append(missing, env)
+	case <-ctx.Done():
+		// First signal: stop listening for more, so a second Ctrl+C
+		// kills immediately. Drain in-flight work within budget.
+		stop()
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdown); err != nil {
+			slog.Error("shutdown error", "err", err)
 		}
+		slog.Info("stopped")
 	}
-
-	if len(missing) > 0 {
-		return fmt.Errorf("missing required environment variables:\n  - %s", strings.Join(missing, "\n  - "))
-	}
-
-	return nil
-}
-func loadEnv(filepath string) {
-	file, err := os.Open(filepath)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-		}
-	}
-}
-func clearSheetsDir(dir string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, e := range entries {
-		path := filepath.Join(dir, e.Name())
-		if err := os.RemoveAll(path); err != nil {
-			fmt.Printf("failed to remove %s: %v", path, err)
-		}
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatalln("server error: ", err)
 	}
 }

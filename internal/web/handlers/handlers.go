@@ -1,4 +1,4 @@
-package web
+package handlers
 
 import (
 	"fmt"
@@ -17,8 +17,8 @@ import (
 	"go.senan.xyz/taglib"
 )
 
-func StartHttpServer(db *db.DbService, run *runner.Runner) {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+func Register(mux *http.ServeMux, db *db.DbService, run *runner.Runner) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		trackers, err := db.ListTrackers(r.Context())
 		if err != nil {
 			views.Error(err.Error()).Render(r.Context(), w)
@@ -26,7 +26,7 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		views.Base(views.Index(views.IndexModel{Trackers: trackers})).Render(r.Context(), w)
 	})
 
-	http.HandleFunc("GET /tracker-list", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /tracker-list", func(w http.ResponseWriter, r *http.Request) {
 		trackers, err := db.ListTrackers(r.Context())
 		if err != nil {
 			views.Error(err.Error()).Render(r.Context(), w)
@@ -36,30 +36,30 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		views.TrackerList(trackers, running).Render(r.Context(), w)
 	})
 
-	http.HandleFunc("POST /run", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /run", func(w http.ResponseWriter, r *http.Request) {
 		run.Trigger(runner.Cmd{Type: runner.CmdTypeRunAll})
 		w.Header().Set("HX-Trigger", "refreshList, runnerStateChanged")
 		w.WriteHeader(http.StatusAccepted)
 	})
 
-	http.HandleFunc("POST /run/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /run/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		run.Trigger(runner.Cmd{Type: runner.CmdTypeRunOne, Id: id})
 		w.Header().Set("HX-Trigger", "refreshList, runnerStateChanged")
 		w.WriteHeader(http.StatusAccepted)
 	})
 
-	http.HandleFunc("/runner-state", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/runner-state", func(w http.ResponseWriter, r *http.Request) {
 		running := run.IsRunning()
 
 		views.TriggerBtn(running).Render(r.Context(), w)
 	})
-	http.HandleFunc("POST /nuke-library", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /nuke-library", func(w http.ResponseWriter, r *http.Request) {
 		NukeLibrary()
 		os.Exit(0)
 	})
 
-	http.HandleFunc("POST /tracker", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /tracker", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
@@ -93,7 +93,7 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		running := run.IsRunning()
 		views.Tracker(newTracker, running).Render(r.Context(), w)
 	})
-	http.HandleFunc("DELETE /tracker/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("DELETE /tracker/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if id == "" {
 			fmt.Printf("no tracker id provided\n")
@@ -115,7 +115,7 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	http.HandleFunc("POST /tracker/{id}/reset", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /tracker/{id}/reset", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if id == "" {
 			http.Error(w, "no tracker id provided", http.StatusBadRequest)
@@ -151,10 +151,6 @@ func StartHttpServer(db *db.DbService, run *runner.Runner) {
 		w.Header().Set("HX-Trigger", "refreshList")
 		w.WriteHeader(http.StatusAccepted)
 	})
-
-	if err := http.ListenAndServe(":3000", nil); err != nil {
-		log.Fatalln("server error: ", err)
-	}
 }
 
 func sheetID(raw string) (string, bool) {

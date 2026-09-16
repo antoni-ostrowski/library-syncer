@@ -1,4 +1,4 @@
-package db
+package config
 
 import (
 	"database/sql"
@@ -9,8 +9,6 @@ import (
 	"path"
 
 	_ "modernc.org/sqlite"
-
-	"github.com/antoni-ostrowski/library-syncer/internal/config"
 )
 
 //go:embed schema.sql
@@ -18,7 +16,7 @@ var schema string
 
 func OpenDb() (*sql.DB, error) {
 	fmt.Println("opening conn to db...")
-	dbPath := config.DbPath()
+	dbPath := DbPath()
 
 	if err := os.MkdirAll(dbPath, 0755); err != nil {
 		log.Fatalf("failed to create db dir %v", err)
