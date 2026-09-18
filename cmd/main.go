@@ -21,7 +21,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	cfg := config.RunConfig()
 	dbSvc := db.NewDbService(cfg.DB)
-	run := runner.New(dbSvc, cfg.SleepSec, cfg.DevMode)
+	run := runner.New(dbSvc, cfg.SleepSec, cfg.DevMode, cfg.SongsDir)
 	go run.Start(ctx)
 	run.Trigger(runner.Cmd{Type: runner.CmdTypeRunAll})
 
