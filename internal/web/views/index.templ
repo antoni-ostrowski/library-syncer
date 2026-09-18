@@ -1,9 +1,9 @@
 package views
 
-import "github.com/antoni-ostrowski/library-syncer/internal/parser"
+import "github.com/antoni-ostrowski/library-syncer/internal/model"
 
 type IndexModel struct {
-	Trackers  []parser.Tracker
+	Trackers  []model.Tracker
 	IsRunning bool
 }
 
@@ -41,7 +41,7 @@ templ TriggerBtn(running bool) {
 	}
 }
 
-templ TrackerList(trackers []parser.Tracker, isRunning bool) {
+templ TrackerList(trackers []model.Tracker, isRunning bool) {
 	<div id="tracker-list">
 		for _, v := range trackers {
 			@Tracker(v, isRunning)

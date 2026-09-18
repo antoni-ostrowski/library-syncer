@@ -7,44 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
+	"github.com/antoni-ostrowski/library-syncer/internal/model"
 )
 
-type Tracker struct {
-	Id         string
-	ReadRanges []ReadRange
-	Artist     string
-	Status     string
-}
-type ReadRange struct {
-	Name    string
-	Mapping TrackerMapping
-}
-
-func NewTracker(artist string, id string, status string, readRanges []ReadRange) Tracker {
-	return Tracker{
-		Artist:     artist,
-		Id:         id,
-		Status:     status,
-		ReadRanges: readRanges,
-	}
-}
-
-type TrackerMapping struct {
-	Era            string
-	Name           string
-	Notes          string
-	FileDate       string
-	Type           string
-	AvailableLen   string
-	Quality        string
-	Links          string
-	FirstPreview   string
-	LeakDate       string
-	OGFileLeakDate string
-}
-
-func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping) ([]downloader.Downloadable, error) {
+func Parse(csvPath string, trackerArtist string, readRangeMapping model.TrackerMapping) ([]model.Downloadable, error) {
 	f, err := os.Open(csvPath)
 	if err != nil {
 		return nil, err
@@ -76,7 +42,7 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 		headerIdx[normalizeColumn(h)] = i
 	}
 
-	var downloadables []downloader.Downloadable
+	var downloadables []model.Downloadable
 	for {
 		row, err := r.Read()
 		if err == io.EOF {
@@ -94,7 +60,7 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 			return ""
 		}
 
-		track := downloader.Track{
+		track := model.Track{
 			Artist: trackerArtist,
 			Name:   get(readRangeMapping.Name),
 			Links:  get(readRangeMapping.Links),
@@ -107,10 +73,10 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 		for link := range strings.FieldsSeq(track.Links) {
 			switch {
 			case strings.Contains(link, "pillows.su"):
-				a := &downloader.DownloadableTrack{Track: track, Url: createPillowcaseLink(link), Source: downloader.SourcePillowcase}
+				a := &model.DownloadableTrack{Track: track, Url: createPillowcaseLink(link), Source: model.SourcePillowcase}
 				downloadables = append(downloadables, a)
 			case strings.Contains(link, "soundcloud.com"):
-				a := &downloader.DownloadableTrack{Track: track, Url: link, Source: downloader.SourceSc}
+				a := &model.DownloadableTrack{Track: track, Url: link, Source: model.SourceSc}
 				downloadables = append(downloadables, a)
 			}
 
@@ -121,7 +87,7 @@ func Parse(csvPath string, trackerArtist string, readRangeMapping TrackerMapping
 	return downloadables, nil
 }
 
-func isHeader(row []string, mapping TrackerMapping) bool {
+func isHeader(row []string, mapping model.TrackerMapping) bool {
 	nameColumn := normalizeColumn(mapping.Name)
 	linksColumn := normalizeColumn(mapping.Links)
 	if nameColumn == "" || linksColumn == "" {
