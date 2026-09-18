@@ -11,7 +11,7 @@ import (
 
 	"github.com/antoni-ostrowski/library-syncer/internal/config"
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
-	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/model"
 	"github.com/antoni-ostrowski/library-syncer/internal/runner"
 	"github.com/antoni-ostrowski/library-syncer/internal/web/views"
 	"go.senan.xyz/taglib"
@@ -65,11 +65,11 @@ func Register(mux *http.ServeMux, db *db.DbService, run *runner.Runner) {
 			return
 		}
 		ranges := r.Form["range"]
-		var readRanges []parser.ReadRange
+		var readRanges []model.ReadRange
 		for i := range ranges {
-			readRanges = append(readRanges, parser.ReadRange{
+			readRanges = append(readRanges, model.ReadRange{
 				Name: ranges[i],
-				Mapping: parser.TrackerMapping{
+				Mapping: model.TrackerMapping{
 					Name:  r.Form["mappingName"][i],
 					Era:   r.Form["mappingEra"][i],
 					Notes: r.Form["mappingNotes"][i],
@@ -84,7 +84,7 @@ func Register(mux *http.ServeMux, db *db.DbService, run *runner.Runner) {
 			http.Error(w, "no spreadsheetId found in link", http.StatusBadRequest)
 
 		}
-		newTracker := parser.NewTracker(r.FormValue("artist"), spreadsheetId, "idle", readRanges)
+		newTracker := model.NewTracker(r.FormValue("artist"), spreadsheetId, "idle", readRanges)
 		if err := db.UpsertTracker(r.Context(), newTracker); err != nil {
 			fmt.Printf("upsert tracker failed: %v\n", err)
 			http.Error(w, "failed to save tracker", http.StatusInternalServerError)

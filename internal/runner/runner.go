@@ -11,6 +11,7 @@ import (
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
 	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
 	srccsv "github.com/antoni-ostrowski/library-syncer/internal/gsh"
+	"github.com/antoni-ostrowski/library-syncer/internal/model"
 	"github.com/antoni-ostrowski/library-syncer/internal/parser"
 )
 
@@ -20,7 +21,8 @@ type Runner struct {
 	db               *db.DbService
 	devMode          bool
 	sleepDuration    time.Duration
-	tracksToDownload chan downloader.Downloadable
+	tracksToDownload chan model.Downloadable
+	songsPath        string
 }
 type CmdType int
 
@@ -35,11 +37,27 @@ type Cmd struct {
 }
 
 func New(db *db.DbService, sleepSec int, devMode bool) *Runner {
-	return &Runner{db: db, tracksToDownload: make(chan downloader.Downloadable, 10000), sleepDuration: time.Duration(sleepSec) * time.Second, devMode: devMode, manual: make(chan Cmd, 1)}
+	return &Runner{
+		db:               db,
+		tracksToDownload: make(chan model.Downloadable, 10000),
+		sleepDuration:    time.Duration(sleepSec) * time.Second,
+		devMode:          devMode,
+		manual:           make(chan Cmd, 1)}
 }
 
 func (r *Runner) Start(ctx context.Context) {
-	downloader.StartWorkers(ctx, r.devMode, r.tracksToDownload)
+	for id := range downloader.GetWorkerCount() {
+		go func(id int) {
+			for track := range r.tracksToDownload {
+				_ = downloader.ProcessOne(id, r.songsPath, track, r.db)
+				if r.devMode {
+					return
+				}
+			}
+		}(id)
+
+	}
+
 	timer := time.NewTicker(r.sleepDuration)
 	defer timer.Stop()
 	for {
@@ -71,7 +89,7 @@ func (r *Runner) IsRunning() bool {
 	return r.running.Load()
 }
 
-func (r *Runner) Enqueue(tracks []downloader.Downloadable) int {
+func (r *Runner) Enqueue(tracks []model.Downloadable) int {
 	count := 0
 	for _, t := range tracks {
 		select {
@@ -120,7 +138,7 @@ func (r *Runner) runAll(ctx context.Context) {
 
 }
 
-func ExecuteTracker(ctx context.Context, db *db.DbService, tracker parser.Tracker, tracksToDownload chan<- downloader.Downloadable) {
+func ExecuteTracker(ctx context.Context, db *db.DbService, tracker model.Tracker, tracksToDownload chan<- model.Downloadable) {
 	fmt.Printf("running for %v\n", tracker.Artist)
 	upTracker := tracker
 	upTracker.Status = "syncing"

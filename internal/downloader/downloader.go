@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/config"
+	"github.com/antoni-ostrowski/library-syncer/internal/db"
+	"github.com/antoni-ostrowski/library-syncer/internal/model"
 	"go.senan.xyz/taglib"
 )
 
@@ -27,59 +28,41 @@ const (
 	Reset   = "\033[0m"
 )
 
-type DebugLogFunc func(format string, a ...any)
+type DebugLogFunc = model.DebugLogFunc
 
-type Track struct {
-	Artist string
-	Era    string
-	Name   string
-	Notes  string
-	Links  string
-}
-
-type Source int
-
-const (
-	SourcePillowcase = iota
-	SourceSc
-)
-
-type Downloadable interface {
-	Download(int) error
-}
-
-type DownloadableTrack struct {
-	Track  Track
-	Url    string
-	Source Source
-}
-
-func (d *DownloadableTrack) Download(workerId int) error {
-	switch d.Source {
-	case SourcePillowcase:
-		return d.downloadPillowcase(workerId)
-	case SourceSc:
-		return d.downloadSc(workerId)
+func fetchRaw(d model.Downloadable, outputDir string, debugLog DebugLogFunc) (string, error) {
+	switch d.GetSource() {
+	case model.SourcePillowcase:
+		t := d.TrackPtr()
+		return downloadFile(d.URL(), *t, outputDir, debugLog)
+	case model.SourceSc:
+		t := d.TrackPtr()
+		return downloadScFile(d.URL(), *t, outputDir, debugLog)
 	default:
-		return fmt.Errorf("unkown source")
+		return "", fmt.Errorf("unkown source")
 	}
 }
 
-func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
-	link := d.Url
-	t := d.Track
+var workerColors = []string{Red, Green, Yellow, Blue, Magenta, Cyan}
 
-	var outputDir = os.Getenv("SONGS_PATH")
-	colors := []string{Red, Green, Yellow, Blue, Magenta, Cyan}
-
-	color := colors[workerId%len(colors)]
-	debugLog := func(format string, a ...any) {
+func makeDebugLog(workerId int) DebugLogFunc {
+	color := workerColors[workerId%len(workerColors)]
+	return func(format string, a ...any) {
 		fmt.Printf(color+"[WORKER %v] "+format+Reset, append([]any{workerId}, a...)...)
 	}
+}
+
+// processOne runs the shared pipeline. Only fetchRaw is source-specific.
+// Checksum/dedup hook belongs here, on finalName right after fetchRaw,
+// before applySnippetIfNeeded/writeMetadata mutate the file.
+func ProcessOne(workerId int, outputDir string, d model.Downloadable, db *db.DbService) error {
+	debugLog := makeDebugLog(workerId)
+	t := d.TrackPtr()
+	link := d.URL()
+	baseName := d.BaseName()
 
 	debugLog("processing %v \n", t.Name)
-	tId := getTrackId(link)
-	if alreadyDownloaded(outputDir, t.Name+tId) {
+	if alreadyDownloaded(outputDir, baseName) {
 		debugLog("File %s already exists, skipping...\n", t.Name)
 		return nil
 	}
@@ -91,19 +74,18 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 
 	debugLog("attempting to download %v \n", link)
 
-	finalName, err := downloadFile(link, t, outputDir, debugLog)
+	finalName, err := fetchRaw(d, outputDir, debugLog)
 	if err != nil {
 		debugLog("Failed to download file %v \n", err)
 		return err
 	}
 
-	finalName, err = applySnippetIfNeeded(finalName, &t, debugLog)
+	finalName, err = applySnippetIfNeeded(finalName, t, debugLog)
 	if err != nil {
 		debugLog("snippet handling failed: %v\n", err)
 	}
 
-	err = writeMetadata(finalName, t)
-	if err != nil {
+	if err := writeMetadata(finalName, *t); err != nil {
 		debugLog("Failed to write metadata %v \n", err)
 		return err
 	}
@@ -111,35 +93,10 @@ func (d *DownloadableTrack) downloadPillowcase(workerId int) error {
 	debugLog("successfully downloaded %v \n", t.Name)
 
 	return nil
-
 }
 
-func (d *DownloadableTrack) downloadSc(workerId int) error {
-	t := d.Track
-	link := d.Url
-
-	var outputDir = os.Getenv("SONGS_PATH")
-	colors := []string{Red, Green, Yellow, Blue, Magenta, Cyan}
-
-	color := colors[workerId%len(colors)]
-	debugLog := func(format string, a ...any) {
-		fmt.Printf(color+"[WORKER %v] "+format+Reset, append([]any{workerId}, a...)...)
-	}
-
-	debugLog("processing %v \n", t.Name)
-	tId := getTrackSlug(link)
-	if alreadyDownloaded(outputDir, t.Name+tId) {
-		debugLog("File %s already exists, skipping...\n", t.Name)
-		return nil
-	}
-
-	if len(link) == 0 {
-		debugLog("No download link found\n")
-		return nil
-	}
-
-	debugLog("attempting to download %v \n", link)
-
+func downloadScFile(link string, t model.Track, outputDir string, debugLog DebugLogFunc) (string, error) {
+	tId := model.GetTrackSlug(link)
 	outputTemplate := filepath.Join(outputDir, t.Name+tId+".%(ext)s")
 	cmd := exec.Command(
 		"yt-dlp",
@@ -152,60 +109,25 @@ func (d *DownloadableTrack) downloadSc(workerId int) error {
 	cmd.Stdout = os.Stdout
 
 	if err := cmd.Run(); err != nil {
-		fmt.Println("yt-dlp failed:", err)
+		debugLog("yt-dlp failed:", err)
 	}
 
 	matches, err := filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
 	if err != nil {
-		fmt.Printf("failed to find the downloaded file?%v \n", err)
-		return err
+		debugLog("failed to find the downloaded file?%v \n", err)
+		return "", err
 	}
 	// also check Snippet variant produced by previous snippet run
 	if len(matches) == 0 {
 		matches, _ = filepath.Glob(filepath.Join(outputDir, t.Name+tId+"Snippet.*"))
 	}
 	if len(matches) == 0 {
-		return fmt.Errorf("no downloaded file found for %s", t.Name)
+		return "", fmt.Errorf("no downloaded file found for %s", t.Name)
 	}
-	finalName := matches[0]
-
-	finalName, err = applySnippetIfNeeded(finalName, &t, debugLog)
-	if err != nil {
-		debugLog("snippet handling failed: %v\n", err)
-	}
-
-	err = writeMetadata(finalName, t)
-	if err != nil {
-		debugLog("Failed to write metadata %v \n", err)
-		return err
-	}
-
-	debugLog("successfully downloaded %v \n", t.Name)
-
-	return nil
-
+	return matches[0], nil
 }
 
-func StartWorkers(ctx context.Context, devMode bool, tracksToDownload <-chan Downloadable) {
-	workerCount := GetWorkerCount()
-	for id := range workerCount {
-		go func(id int) {
-			for track := range tracksToDownload {
-				track.Download(id)
-
-				if devMode {
-					return
-				}
-
-			}
-
-		}(id)
-
-	}
-
-}
-
-func downloadFile(link string, track Track, outputDir string, debugLog DebugLogFunc) (string, error) {
+func downloadFile(link string, track model.Track, outputDir string, debugLog DebugLogFunc) (string, error) {
 	resp, err := http.Get(link)
 	if err != nil {
 		return "", errors.New("Failed to request the download link %v")
@@ -230,7 +152,7 @@ func downloadFile(link string, track Track, outputDir string, debugLog DebugLogF
 		ext = ".ogg"
 	}
 
-	trackId := getTrackId(link)
+	trackId := model.GetTrackId(link)
 	finalName := path.Join(outputDir, track.Name+trackId+ext)
 
 	debugLog("Saving as: '%v'\n", finalName)
@@ -259,7 +181,7 @@ func downloadFile(link string, track Track, outputDir string, debugLog DebugLogF
 
 }
 
-func getImageForTrack(track Track, base string) []byte {
+func getImageForTrack(track model.Track, base string) []byte {
 	era := strings.TrimSpace(track.Era)
 	// lookup cover by base era without Snippets suffix so snippets share same art
 	baseEra := strings.TrimSuffix(era, " Snippets")
@@ -309,7 +231,7 @@ func alreadyDownloaded(outputDir, baseName string) bool {
 	return false
 }
 
-func applySnippetIfNeeded(filePath string, t *Track, debugLog DebugLogFunc) (string, error) {
+func applySnippetIfNeeded(filePath string, t *model.Track, debugLog DebugLogFunc) (string, error) {
 	dur, err := probeDurationSeconds(filePath)
 	if err != nil {
 		debugLog("probe duration failed for %s: %v\n", filePath, err)
@@ -414,33 +336,7 @@ func GetWorkerCount() int {
 	return n
 }
 
-func getTrackId(link string) string {
-	s := link
-	trackId := ""
-	if len(s) >= 32 {
-		trackId = s[len(s)-32:]
-	}
-	return "---" + trackId
-}
-
-func getTrackSlug(link string) string {
-	const prefix = "soundcloud.com/"
-	idx := strings.Index(link, prefix)
-	if idx == -1 {
-		return ""
-	}
-
-	slug := link[idx+len(prefix):]
-	if q := strings.IndexAny(slug, "?#"); q != -1 {
-		slug = slug[:q]
-	}
-	slug = strings.TrimSuffix(slug, "/")
-	slug = strings.ReplaceAll(slug, "/", "-")
-
-	return "---" + slug
-}
-
-func writeMetadata(filePath string, t Track) error {
+func writeMetadata(filePath string, t model.Track) error {
 	if strings.ToLower(filepath.Ext(filePath)) != ".mp3" {
 		if err := convertToMP3(filePath, func(format string, args ...any) {
 			fmt.Printf(format, args...)

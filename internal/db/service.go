@@ -8,8 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/antoni-ostrowski/library-syncer/internal/downloader"
-	"github.com/antoni-ostrowski/library-syncer/internal/parser"
+	"github.com/antoni-ostrowski/library-syncer/internal/model"
 )
 
 type DbService struct {
@@ -23,14 +22,14 @@ func NewDbService(db *sql.DB) *DbService {
 type SyncResult struct {
 	InsertedOrUpdated int
 	DeletionsCount    int
-	TracksToDownload  []downloader.Downloadable
+	TracksToDownload  []model.Downloadable
 }
 
 func (s SyncResult) String() string {
 	return fmt.Sprintf("inserted or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
 }
 
-func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.Downloadable, trackerUniqueDbId string) (SyncResult, error) {
+func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]model.Downloadable, trackerUniqueDbId string) (SyncResult, error) {
 	fmt.Printf("---syncing source tracks to database... \n")
 
 	tx, err := d.db.BeginTx(ctx, nil)
@@ -98,7 +97,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]downloader.D
 	return result, tx.Commit()
 }
 
-func prepareTrack(track *downloader.Downloadable) (string, string, error) {
+func prepareTrack(track *model.Downloadable) (string, string, error) {
 	jsonBytes, err := json.Marshal(track)
 	if err != nil {
 		return "", "", err
@@ -112,15 +111,15 @@ func prepareTrack(track *downloader.Downloadable) (string, string, error) {
 	return hashId, jsonString, nil
 }
 
-func (d *DbService) ListTrackers(ctx context.Context) ([]parser.Tracker, error) {
+func (d *DbService) ListTrackers(ctx context.Context) ([]model.Tracker, error) {
 	rows, err := d.db.QueryContext(ctx, "SELECT id, read_ranges, artist, status FROM trackers;")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var trackers []parser.Tracker
+	var trackers []model.Tracker
 	for rows.Next() {
-		var t parser.Tracker
+		var t model.Tracker
 		var readRangesJSON string
 		if err := rows.Scan(&t.Id, &readRangesJSON, &t.Artist, &t.Status); err != nil {
 			return nil, err
@@ -136,7 +135,7 @@ func (d *DbService) ListTrackers(ctx context.Context) ([]parser.Tracker, error) 
 
 }
 
-func (d *DbService) UpsertTracker(ctx context.Context, newTracker parser.Tracker) error {
+func (d *DbService) UpsertTracker(ctx context.Context, newTracker model.Tracker) error {
 	readRangesJSON, err := json.Marshal(newTracker.ReadRanges)
 	if err != nil {
 		return err
@@ -171,8 +170,8 @@ func (d *DbService) DeleteTracker(ctx context.Context, trackerId string) (string
 
 }
 
-func (d *DbService) GetTracker(ctx context.Context, trackerId string) (parser.Tracker, error) {
-	var t parser.Tracker
+func (d *DbService) GetTracker(ctx context.Context, trackerId string) (model.Tracker, error) {
+	var t model.Tracker
 	var readRangesJSON string
 	err := d.db.QueryRowContext(ctx, `SELECT id, read_ranges, artist, status FROM trackers WHERE id = ?;`, trackerId).Scan(&t.Id, &readRangesJSON, &t.Artist, &t.Status)
 	if err == sql.ErrNoRows {
@@ -190,20 +189,20 @@ func (d *DbService) GetTracker(ctx context.Context, trackerId string) (parser.Tr
 
 }
 
-func (d *DbService) GetTracksForTracker(ctx context.Context, trackerId string) ([]downloader.Downloadable, error) {
+func (d *DbService) GetTracksForTracker(ctx context.Context, trackerId string) ([]model.Downloadable, error) {
 	rows, err := d.db.QueryContext(ctx, `SELECT metadata FROM tracks WHERE tracker_id LIKE ?;`, trackerId+"#%")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []downloader.Downloadable
+	var result []model.Downloadable
 	for rows.Next() {
 		var meta string
 		if err := rows.Scan(&meta); err != nil {
 			return nil, err
 		}
-		var dt downloader.DownloadableTrack
+		var dt model.DownloadableTrack
 		if err := json.Unmarshal([]byte(meta), &dt); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal track metadata: %w", err)
 		}

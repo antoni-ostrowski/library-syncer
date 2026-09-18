@@ -8,10 +8,10 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/antoni-ostrowski/library-syncer/internal/parser"
+import "github.com/antoni-ostrowski/library-syncer/internal/model"
 
 type IndexModel struct {
-	Trackers  []parser.Tracker
+	Trackers  []model.Tracker
 	IsRunning bool
 }
 
@@ -104,7 +104,7 @@ func TriggerBtn(running bool) templ.Component {
 	})
 }
 
-func TrackerList(trackers []parser.Tracker, isRunning bool) templ.Component {
+func TrackerList(trackers []model.Tracker, isRunning bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
