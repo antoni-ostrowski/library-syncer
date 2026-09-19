@@ -13,4 +13,9 @@ CREATE TABLE IF NOT EXISTS trackers (
     status TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS files (
+    content_hash TEXT NOT NULL PRIMARY KEY,
+    path TEXT NOT NULL
+);
+
 

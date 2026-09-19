@@ -1,6 +1,9 @@
 package downloader
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -80,7 +83,36 @@ func ProcessOne(workerId int, outputDir string, d model.Downloadable, db *db.DbS
 		return err
 	}
 
+	// Dedup by content hash (pre-tag bytes). Tagging/cover embed mutates
+	// the file, so the hash is only comparable at this point.
+	ctx := context.Background()
+	contentHash, err := hashFile(finalName)
+	if err != nil {
+		debugLog("hash failed for %s: %v\n", finalName, err)
+	} else if existingPath, found, err := db.GetFilePathByHash(ctx, contentHash); err != nil {
+		debugLog("hash lookup failed: %v\n", err)
+	} else if found && fileExists(existingPath) {
+		if existingPath != finalName {
+			debugLog("duplicate content %s, already stored as %s, removing new copy\n", contentHash[:12], filepath.Base(existingPath))
+			_ = os.Remove(finalName)
+		}
+		return nil
+	}
+
 	finalName, err = applySnippetIfNeeded(finalName, t, debugLog)
+	if err != nil {
+		debugLog("snippet handling failed: %v\n", err)
+	}
+
+	if contentHash != "" {
+		if inserted, err := db.PutFileHash(ctx, contentHash, finalName); err != nil {
+			debugLog("hash store failed: %v\n", err)
+		} else if !inserted {
+			debugLog("duplicate content %s (race lost), removing new copy\n", contentHash[:12])
+			_ = os.Remove(finalName)
+			return nil
+		}
+	}
 	if err != nil {
 		debugLog("snippet handling failed: %v\n", err)
 	}
@@ -216,6 +248,20 @@ func probeDurationSeconds(filePath string) (float64, error) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func hashFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func alreadyDownloaded(outputDir, baseName string) bool {
