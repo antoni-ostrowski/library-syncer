@@ -212,3 +212,29 @@ func (d *DbService) GetTracksForTracker(ctx context.Context, trackerId string) (
 	}
 	return result, rows.Err()
 }
+
+func (d *DbService) GetFilePathByHash(ctx context.Context, hash string) (string, bool, error) {
+	var path string
+	err := d.db.QueryRowContext(ctx, `SELECT path FROM files WHERE content_hash = ?;`, hash).Scan(&path)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return path, true, nil
+}
+
+// PutFileHash inserts hash->path. Returns inserted=false when another worker
+// won the race (row already exists); caller should then drop its own copy.
+func (d *DbService) PutFileHash(ctx context.Context, hash, path string) (bool, error) {
+	res, err := d.db.ExecContext(ctx, `INSERT OR IGNORE INTO files (content_hash, path) VALUES (?, ?);`, hash, path)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
+}

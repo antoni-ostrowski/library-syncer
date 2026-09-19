@@ -48,7 +48,6 @@ func New(db *db.DbService, sleepSec int, devMode bool, songsPath string) *Runner
 }
 
 func (r *Runner) Start(ctx context.Context) {
-	fmt.Printf("using SONGS_PATH: %s\n", r.songsPath)
 	for id := range downloader.GetWorkerCount() {
 		go func(id int) {
 			for track := range r.tracksToDownload {
