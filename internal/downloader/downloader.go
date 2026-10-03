@@ -57,9 +57,9 @@ func ProcessOne(workerId int, outputDir string, t model.Track, db *db.DbService)
 		return err
 	}
 
-	finalName, err = applySnippetIfNeeded(finalName, t, debugLog)
+	finalName, err = applySnippetIfNeeded(finalName, &t, debugLog)
 	if err != nil {
-		debugLog("snippet handling failed: %v\n", err)
+		return err
 	}
 
 	if err := writeMetadata(finalName, t); err != nil {
@@ -163,14 +163,20 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-func applySnippetIfNeeded(filePath string, t model.Track, debugLog DebugLogFunc) (string, error) {
+func applySnippetIfNeeded(filePath string, t *model.Track, debugLog DebugLogFunc) (string, error) {
 	dur, err := probeDurationSeconds(filePath)
 	if err != nil {
-		debugLog("probe duration failed for %s: %v\n", filePath, err)
-		return filePath, nil
+		debugLog("probe duration failed for %s: %v, deleting file\n", filePath, err)
+		_ = os.Remove(filePath)
+		return "", fmt.Errorf("unplayable file %s: %w", filepath.Base(filePath), err)
 	}
 	debugLog("duration for %s: %.2fs\n", filepath.Base(filePath), dur)
-	if dur >= 60 || dur <= 0 {
+	if dur <= 0 {
+		debugLog("zero-length file %s, deleting\n", filepath.Base(filePath))
+		_ = os.Remove(filePath)
+		return "", fmt.Errorf("zero-length file %s", filepath.Base(filePath))
+	}
+	if dur >= 60 {
 		return filePath, nil
 	}
 	// Album: "Album" -> "Album Snippets"
