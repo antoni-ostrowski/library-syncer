@@ -21,7 +21,7 @@ type Runner struct {
 	db               *db.DbService
 	devMode          bool
 	sleepDuration    time.Duration
-	tracksToDownload chan model.Downloadable
+	tracksToDownload chan model.Track
 	songsPath        string
 }
 type CmdType int
@@ -39,7 +39,7 @@ type Cmd struct {
 func New(db *db.DbService, sleepSec int, devMode bool, songsPath string) *Runner {
 	return &Runner{
 		db:               db,
-		tracksToDownload: make(chan model.Downloadable, 10000),
+		tracksToDownload: make(chan model.Track, 10000),
 		sleepDuration:    time.Duration(sleepSec) * time.Second,
 		devMode:          devMode,
 		manual:           make(chan Cmd, 1),
@@ -91,7 +91,7 @@ func (r *Runner) IsRunning() bool {
 	return r.running.Load()
 }
 
-func (r *Runner) Enqueue(tracks []model.Downloadable) int {
+func (r *Runner) Enqueue(tracks []model.Track) int {
 	count := 0
 	for _, t := range tracks {
 		select {
@@ -140,7 +140,7 @@ func (r *Runner) runAll(ctx context.Context) {
 
 }
 
-func ExecuteTracker(ctx context.Context, db *db.DbService, tracker model.Tracker, tracksToDownload chan<- model.Downloadable) {
+func ExecuteTracker(ctx context.Context, db *db.DbService, tracker model.Tracker, tracksToDownload chan<- model.Track) {
 	fmt.Printf("running for %v\n", tracker.Artist)
 	upTracker := tracker
 	upTracker.Status = "syncing"
@@ -163,8 +163,7 @@ func ExecuteTracker(ctx context.Context, db *db.DbService, tracker model.Tracker
 		}
 		fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-		trackerUniqueDbId := tracker.Id + "#" + readRange.Name
-		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerUniqueDbId)
+		syncResult, err := db.SyncTracks(ctx, &sourceTracks, tracker.Id)
 		if err != nil {
 			fmt.Printf("failed to sync tracks to db: %v\n", err)
 			return

@@ -1,9 +1,6 @@
 package downloader
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -33,19 +30,6 @@ const (
 
 type DebugLogFunc = model.DebugLogFunc
 
-func fetchRaw(d model.Downloadable, outputDir string, debugLog DebugLogFunc) (string, error) {
-	switch d.GetSource() {
-	case model.SourcePillowcase:
-		t := d.TrackPtr()
-		return downloadFile(d.URL(), *t, outputDir, debugLog)
-	case model.SourceSc:
-		t := d.TrackPtr()
-		return downloadScFile(d.URL(), *t, outputDir, debugLog)
-	default:
-		return "", fmt.Errorf("unkown source")
-	}
-}
-
 var workerColors = []string{Red, Green, Yellow, Blue, Magenta, Cyan}
 
 func makeDebugLog(workerId int) DebugLogFunc {
@@ -55,48 +39,22 @@ func makeDebugLog(workerId int) DebugLogFunc {
 	}
 }
 
-// processOne runs the shared pipeline. Only fetchRaw is source-specific.
-// Checksum/dedup hook belongs here, on finalName right after fetchRaw,
-// before applySnippetIfNeeded/writeMetadata mutate the file.
-func ProcessOne(workerId int, outputDir string, d model.Downloadable, db *db.DbService) error {
+func ProcessOne(workerId int, outputDir string, t model.Track, db *db.DbService) error {
 	debugLog := makeDebugLog(workerId)
-	t := d.TrackPtr()
-	link := d.URL()
-	baseName := d.BaseName()
 
 	debugLog("processing %v \n", t.Name)
-	if alreadyDownloaded(outputDir, baseName) {
-		debugLog("File %s already exists, skipping...\n", t.Name)
-		return nil
-	}
 
-	if len(link) == 0 {
+	if len(t.Link) == 0 {
 		debugLog("No download link found\n")
 		return nil
 	}
 
-	debugLog("attempting to download %v \n", link)
+	debugLog("attempting to download %v \n", t.Link)
 
-	finalName, err := fetchRaw(d, outputDir, debugLog)
+	finalName, err := downloadFile(t.Link, t, outputDir, debugLog)
 	if err != nil {
 		debugLog("Failed to download file %v \n", err)
 		return err
-	}
-
-	// Dedup by content hash (pre-tag bytes). Tagging/cover embed mutates
-	// the file, so the hash is only comparable at this point.
-	ctx := context.Background()
-	contentHash, err := hashFile(finalName)
-	if err != nil {
-		debugLog("hash failed for %s: %v\n", finalName, err)
-	} else if existingPath, found, err := db.GetFilePathByHash(ctx, contentHash); err != nil {
-		debugLog("hash lookup failed: %v\n", err)
-	} else if found && fileExists(existingPath) {
-		if existingPath != finalName {
-			debugLog("duplicate content %s, already stored as %s, removing new copy\n", contentHash[:12], filepath.Base(existingPath))
-			_ = os.Remove(finalName)
-		}
-		return nil
 	}
 
 	finalName, err = applySnippetIfNeeded(finalName, t, debugLog)
@@ -104,20 +62,7 @@ func ProcessOne(workerId int, outputDir string, d model.Downloadable, db *db.DbS
 		debugLog("snippet handling failed: %v\n", err)
 	}
 
-	if contentHash != "" {
-		if inserted, err := db.PutFileHash(ctx, contentHash, finalName); err != nil {
-			debugLog("hash store failed: %v\n", err)
-		} else if !inserted {
-			debugLog("duplicate content %s (race lost), removing new copy\n", contentHash[:12])
-			_ = os.Remove(finalName)
-			return nil
-		}
-	}
-	if err != nil {
-		debugLog("snippet handling failed: %v\n", err)
-	}
-
-	if err := writeMetadata(finalName, *t); err != nil {
+	if err := writeMetadata(finalName, t); err != nil {
 		debugLog("Failed to write metadata %v \n", err)
 		return err
 	}
@@ -125,38 +70,6 @@ func ProcessOne(workerId int, outputDir string, d model.Downloadable, db *db.DbS
 	debugLog("successfully downloaded %v \n", t.Name)
 
 	return nil
-}
-
-func downloadScFile(link string, t model.Track, outputDir string, debugLog DebugLogFunc) (string, error) {
-	tId := model.GetTrackSlug(link)
-	outputTemplate := filepath.Join(outputDir, t.Name+tId+".%(ext)s")
-	cmd := exec.Command(
-		"yt-dlp",
-		"-f", "hls_aac_160k/http_mp3_1_0/bestaudio",
-		"-o", outputTemplate,
-		link,
-	)
-
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-
-	if err := cmd.Run(); err != nil {
-		debugLog("yt-dlp failed:", err)
-	}
-
-	matches, err := filepath.Glob(filepath.Join(outputDir, t.Name+tId+".*"))
-	if err != nil {
-		debugLog("failed to find the downloaded file?%v \n", err)
-		return "", err
-	}
-	// also check Snippet variant produced by previous snippet run
-	if len(matches) == 0 {
-		matches, _ = filepath.Glob(filepath.Join(outputDir, t.Name+tId+"Snippet.*"))
-	}
-	if len(matches) == 0 {
-		return "", fmt.Errorf("no downloaded file found for %s", t.Name)
-	}
-	return matches[0], nil
 }
 
 func downloadFile(link string, track model.Track, outputDir string, debugLog DebugLogFunc) (string, error) {
@@ -250,34 +163,7 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-func hashFile(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-func alreadyDownloaded(outputDir, baseName string) bool {
-	// matches baseName.* and baseNameSnippet.*
-	matches, err := filepath.Glob(filepath.Join(outputDir, baseName+".*"))
-	if err == nil && len(matches) > 0 {
-		return true
-	}
-	matches, err = filepath.Glob(filepath.Join(outputDir, baseName+"Snippet.*"))
-	if err == nil && len(matches) > 0 {
-		return true
-	}
-	return false
-}
-
-func applySnippetIfNeeded(filePath string, t *model.Track, debugLog DebugLogFunc) (string, error) {
+func applySnippetIfNeeded(filePath string, t model.Track, debugLog DebugLogFunc) (string, error) {
 	dur, err := probeDurationSeconds(filePath)
 	if err != nil {
 		debugLog("probe duration failed for %s: %v\n", filePath, err)
