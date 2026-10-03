@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/model"
 )
@@ -194,4 +196,58 @@ func (d *DbService) GetTracksForTracker(ctx context.Context, trackerId string) (
 		result = append(result, track)
 	}
 	return result, rows.Err()
+}
+
+var ErrArchiveConflict = errors.New("static archive label or directory already exists")
+
+func (d *DbService) ListStaticAssets(ctx context.Context) ([]model.StaticAsset, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT id, name, dir, created_at FROM static_assets ORDER BY created_at;`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []model.StaticAsset
+	for rows.Next() {
+		var a model.StaticAsset
+		if err := rows.Scan(&a.Id, &a.Name, &a.Dir, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, a)
+	}
+	return result, rows.Err()
+}
+
+func (d *DbService) GetStaticAsset(ctx context.Context, id string) (model.StaticAsset, error) {
+	var a model.StaticAsset
+	err := d.db.QueryRowContext(ctx, `SELECT id, name, dir, created_at FROM static_assets WHERE id = ?;`, id).Scan(&a.Id, &a.Name, &a.Dir, &a.CreatedAt)
+	if err != nil {
+		return a, err
+	}
+	return a, nil
+}
+
+func (d *DbService) StaticAssetExists(ctx context.Context, name, dir string) (bool, error) {
+	var n int
+	err := d.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM static_assets WHERE name = ? OR dir = ?;`, name, dir).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+func (d *DbService) CreateStaticAsset(ctx context.Context, a model.StaticAsset) error {
+	_, err := d.db.ExecContext(ctx, `INSERT INTO static_assets (id, name, dir, created_at) VALUES (?,?,?,?);`, a.Id, a.Name, a.Dir, a.CreatedAt)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return ErrArchiveConflict
+		}
+		return err
+	}
+	return nil
+}
+
+func (d *DbService) DeleteStaticAsset(ctx context.Context, id string) error {
+	_, err := d.db.ExecContext(ctx, `DELETE FROM static_assets WHERE id = ?;`, id)
+	return err
 }

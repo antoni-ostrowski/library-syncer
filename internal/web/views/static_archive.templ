@@ -1,0 +1,44 @@
+package views
+
+import "github.com/antoni-ostrowski/library-syncer/internal/model"
+
+templ StaticArchiveList(archives []model.StaticAsset) {
+	<div id="archive-list">
+		for _, a := range archives {
+			@StaticArchive(a)
+		}
+	</div>
+}
+
+templ StaticArchive(a model.StaticAsset) {
+	<div class="tracker">
+		<div class="tracker-head">
+			<div>
+				<h3>{ a.Name }</h3>
+				<p class="meta">{ a.Dir }</p>
+			</div>
+		</div>
+		<div class="actions">
+			<button class="btn-danger" hx-delete={ "/static-archives/" + a.Id } hx-target="#archive-list">Delete</button>
+		</div>
+	</div>
+}
+
+templ InsertStaticArchive() {
+	<p>Upload a zip archive of songs or directories with songs. It is unpacked as-is under the songs folder.</p>
+	<form action="/static-archives" method="post" enctype="multipart/form-data">
+		<div class="form-grid">
+			<div>
+				<label for="archive-label">Label</label>
+				<input type="text" id="archive-label" name="label" required/>
+			</div>
+			<div>
+				<label for="archive-zip-file">Zip file</label>
+				<input type="file" id="archive-zip-file" name="zipfile" accept=".zip" required/>
+			</div>
+		</div>
+		<div class="form-actions">
+			<button type="submit" class="btn">Upload archive</button>
+		</div>
+	</form>
+}
