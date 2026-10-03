@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"archive/zip"
+	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/antoni-ostrowski/library-syncer/internal/config"
 	"github.com/antoni-ostrowski/library-syncer/internal/db"
@@ -23,7 +27,11 @@ func Register(mux *http.ServeMux, db *db.DbService, run *runner.Runner) {
 		if err != nil {
 			views.Error(err.Error()).Render(r.Context(), w)
 		}
-		views.Base(views.Index(views.IndexModel{Trackers: trackers})).Render(r.Context(), w)
+		archives, err := db.ListStaticAssets(r.Context())
+		if err != nil {
+			views.Error(err.Error()).Render(r.Context(), w)
+		}
+		views.Base(views.Index(views.IndexModel{Trackers: trackers, Archives: archives})).Render(r.Context(), w)
 	})
 
 	mux.HandleFunc("GET /tracker-list", func(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +159,156 @@ func Register(mux *http.ServeMux, db *db.DbService, run *runner.Runner) {
 		w.Header().Set("HX-Trigger", "refreshList")
 		w.WriteHeader(http.StatusAccepted)
 	})
+
+	mux.HandleFunc("GET /archive-list", func(w http.ResponseWriter, r *http.Request) {
+		archives, err := db.ListStaticAssets(r.Context())
+		if err != nil {
+			views.Error(err.Error()).Render(r.Context(), w)
+			return
+		}
+		views.StaticArchiveList(archives).Render(r.Context(), w)
+	})
+
+	mux.HandleFunc("POST /static-archives", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			http.Error(w, "failed to parse upload", http.StatusBadRequest)
+			return
+		}
+		label := strings.TrimSpace(r.FormValue("label"))
+		if label == "" {
+			http.Error(w, "label is required", http.StatusBadRequest)
+			return
+		}
+		zips := r.MultipartForm.File["zipfile"]
+		if len(zips) == 0 {
+			http.Error(w, "no zip file provided", http.StatusBadRequest)
+			return
+		}
+		fh := zips[0]
+		if !strings.HasSuffix(strings.ToLower(fh.Filename), ".zip") {
+			http.Error(w, "only .zip files accepted", http.StatusBadRequest)
+			return
+		}
+
+		src, err := fh.Open()
+		if err != nil {
+			http.Error(w, "failed to read upload", http.StatusBadRequest)
+			return
+		}
+		defer src.Close()
+		tmp, err := os.CreateTemp("", "archive-*.zip")
+		if err != nil {
+			http.Error(w, "failed to save upload", http.StatusInternalServerError)
+			return
+		}
+		tmpName := tmp.Name()
+		defer os.Remove(tmpName)
+		if _, err := io.Copy(tmp, src); err != nil {
+			tmp.Close()
+			http.Error(w, "failed to save upload", http.StatusInternalServerError)
+			return
+		}
+		if err := tmp.Close(); err != nil {
+			http.Error(w, "failed to save upload", http.StatusInternalServerError)
+			return
+		}
+
+		zr, err := zip.OpenReader(tmpName)
+		if err != nil {
+			http.Error(w, "not a valid zip file", http.StatusBadRequest)
+			return
+		}
+		defer zr.Close()
+
+		names := make([]string, 0, len(zr.File))
+		for _, f := range zr.File {
+			names = append(names, f.Name)
+		}
+		fallback := strings.TrimSuffix(filepath.Base(fh.Filename), filepath.Ext(fh.Filename))
+		top, kept, rels, dirs, ok := zipLayout(names, fallback)
+		if !ok || len(kept) == 0 {
+			http.Error(w, "zip has no usable files", http.StatusBadRequest)
+			return
+		}
+
+		exists, err := db.StaticAssetExists(r.Context(), label, top)
+		if err != nil {
+			http.Error(w, "failed to check archives", http.StatusInternalServerError)
+			return
+		}
+		if exists {
+			http.Error(w, "static archive label or directory already exists", http.StatusConflict)
+			return
+		}
+
+		songsDir := os.Getenv("SONGS_PATH")
+		if songsDir == "" {
+			http.Error(w, "SONGS_PATH not set", http.StatusInternalServerError)
+			return
+		}
+		destRoot := filepath.Join(songsDir, top)
+		if _, err := os.Stat(destRoot); err == nil {
+			http.Error(w, "static archive directory already exists on disk", http.StatusConflict)
+			return
+		}
+
+		if err := writeZipArchive(zr, kept, rels, dirs, destRoot); err != nil {
+			os.RemoveAll(destRoot)
+			http.Error(w, "failed to save archive", http.StatusInternalServerError)
+			return
+		}
+
+		asset := model.StaticAsset{
+			Id:        model.NewStaticAssetID(),
+			Name:      label,
+			Dir:       top,
+			CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		}
+		if err := db.CreateStaticAsset(r.Context(), asset); err != nil {
+			os.RemoveAll(destRoot)
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				http.Error(w, "static archive label or directory already exists", http.StatusConflict)
+				return
+			}
+			http.Error(w, "failed to save archive", http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+
+	mux.HandleFunc("DELETE /static-archives/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			http.Error(w, "no archive id provided", http.StatusBadRequest)
+			return
+		}
+		asset, err := db.GetStaticAsset(r.Context(), id)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			http.Error(w, "failed to load archive", http.StatusInternalServerError)
+			return
+		}
+		if songsDir := os.Getenv("SONGS_PATH"); songsDir != "" {
+			if err := os.RemoveAll(filepath.Join(songsDir, asset.Dir)); err != nil {
+				http.Error(w, "failed to delete archive files", http.StatusInternalServerError)
+				return
+			}
+		}
+		if err := db.DeleteStaticAsset(r.Context(), id); err != nil {
+			http.Error(w, "failed to delete archive", http.StatusInternalServerError)
+			return
+		}
+		archives, err := db.ListStaticAssets(r.Context())
+		if err != nil {
+			http.Error(w, "failed to load archives", http.StatusInternalServerError)
+			return
+		}
+		views.StaticArchiveList(archives).Render(r.Context(), w)
+	})
 }
 
 func sheetID(raw string) (string, bool) {
@@ -163,6 +321,117 @@ func sheetID(raw string) (string, bool) {
 		return parts[2], true
 	}
 	return "", false
+}
+
+// zipLayout maps zip entries onto the archive tree. Entries under one
+// common top folder keep it as root; otherwise the zip's own basename is
+// the root and entries land verbatim. macOS metadata (__MACOSX, .DS_Store)
+// is skipped. kept holds indices into names aligned with rels; dirs holds
+// explicit directory entries so empty folders survive too.
+func zipLayout(names []string, fallbackTop string) (top string, kept []int, rels []string, dirs []string, ok bool) {
+	shared := ""
+	nested := true
+	for _, name := range names {
+		if isZipSkipped(name) || strings.HasSuffix(name, "/") {
+			continue
+		}
+		segs := strings.Split(strings.ReplaceAll(name, "\\", "/"), "/")
+		if len(segs) < 2 {
+			nested = false
+			break
+		}
+		if shared == "" {
+			shared = segs[0]
+		} else if segs[0] != shared {
+			nested = false
+			break
+		}
+	}
+	if nested && shared != "" {
+		top = shared
+	} else {
+		top = fallbackTop
+	}
+	if top == "" || top == "." || top == ".." {
+		return "", nil, nil, nil, false
+	}
+
+	for i, name := range names {
+		if strings.HasSuffix(name, "/") {
+			segs := strings.Split(strings.Trim(strings.ReplaceAll(name, "\\", "/"), "/"), "/")
+			for _, s := range segs {
+				if s == "" || s == "." || s == ".." {
+					return "", nil, nil, nil, false
+				}
+			}
+			rel := filepath.Join(segs...)
+			if nested && len(segs) > 1 {
+				rel = filepath.Join(segs[1:]...)
+			} else if nested {
+				continue
+			}
+			dirs = append(dirs, rel)
+			continue
+		}
+		if isZipSkipped(name) {
+			continue
+		}
+		segs := strings.Split(strings.ReplaceAll(name, "\\", "/"), "/")
+		for _, s := range segs {
+			if s == "" || s == "." || s == ".." {
+				return "", nil, nil, nil, false
+			}
+		}
+		rel := filepath.Join(segs...)
+		if nested {
+			rel = filepath.Join(segs[1:]...)
+		}
+		kept = append(kept, i)
+		rels = append(rels, rel)
+	}
+	return top, kept, rels, dirs, true
+}
+
+func isZipSkipped(name string) bool {
+	segs := strings.Split(strings.ReplaceAll(name, "\\", "/"), "/")
+	if len(segs) > 0 && segs[0] == "__MACOSX" {
+		return true
+	}
+	return segs[len(segs)-1] == ".DS_Store"
+}
+
+func writeZipArchive(zr *zip.ReadCloser, kept []int, rels []string, dirs []string, destRoot string) error {
+	for _, d := range dirs {
+		if err := os.MkdirAll(filepath.Join(destRoot, d), 0755); err != nil {
+			return err
+		}
+	}
+	for i, idx := range kept {
+		rc, err := zr.File[idx].Open()
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(destRoot, rels[i])
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			rc.Close()
+			return err
+		}
+		out, err := os.Create(dest)
+		if err != nil {
+			rc.Close()
+			return err
+		}
+		_, copyErr := io.Copy(out, rc)
+		closeErr := out.Close()
+		rc.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
+	return nil
 }
 
 func NukeLibrary() {

@@ -117,3 +117,44 @@ func TestSyncTracksSameTitleDifferentIdKept(t *testing.T) {
 		t.Fatalf("inserted = %d, want 2 (same title, distinct ids)", res.InsertedOrUpdated)
 	}
 }
+
+func TestStaticAssetsCrudAndConflict(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	a := model.StaticAsset{Id: "abc123", Name: "danny tape", Dir: "DannyTape", CreatedAt: "2026-10-03T00:00:00Z"}
+	if err := svc.CreateStaticAsset(ctx, a); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := svc.CreateStaticAsset(ctx, a); err != ErrArchiveConflict {
+		t.Fatalf("duplicate create err = %v, want ErrArchiveConflict", err)
+	}
+
+	dupName := model.StaticAsset{Id: "other", Name: "danny tape", Dir: "OtherDir", CreatedAt: "2026-10-03T00:00:00Z"}
+	if err := svc.CreateStaticAsset(ctx, dupName); err != ErrArchiveConflict {
+		t.Fatalf("dup name err = %v, want ErrArchiveConflict", err)
+	}
+
+	exists, err := svc.StaticAssetExists(ctx, "danny tape", "Nope")
+	if err != nil || !exists {
+		t.Fatalf("exists by name = %v, %v; want true, nil", exists, err)
+	}
+	exists, err = svc.StaticAssetExists(ctx, "missing", "missing")
+	if err != nil || exists {
+		t.Fatalf("exists missing = %v, %v; want false, nil", exists, err)
+	}
+
+	listed, err := svc.ListStaticAssets(ctx)
+	if err != nil || len(listed) != 1 || listed[0].Dir != "DannyTape" {
+		t.Fatalf("list = %+v, %v; want 1 asset", listed, err)
+	}
+
+	if err := svc.DeleteStaticAsset(ctx, "abc123"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	listed, err = svc.ListStaticAssets(ctx)
+	if err != nil || len(listed) != 0 {
+		t.Fatalf("list after delete = %+v, %v; want empty", listed, err)
+	}
+}
