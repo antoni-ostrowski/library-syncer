@@ -4,7 +4,6 @@ import "github.com/antoni-ostrowski/library-syncer/internal/model"
 
 type IndexModel struct {
 	Trackers  []model.Tracker
-	Archives  []model.StaticAsset
 	IsRunning bool
 }
 
@@ -28,16 +27,6 @@ templ Index(m IndexModel) {
 		<section>
 			<h2>Add tracker</h2>
 			@InsertTracker()
-		</section>
-		<section>
-			<h2>Static archives</h2>
-			<div id="archive-list" hx-get="/archive-list" hx-trigger="refreshArchives from:body">
-				@StaticArchiveList(m.Archives)
-			</div>
-		</section>
-		<section>
-			<h2>Add static archive</h2>
-			@InsertStaticArchive()
 		</section>
 	</main>
 }

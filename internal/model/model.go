@@ -1,10 +1,5 @@
 package model
 
-import (
-	"crypto/rand"
-	"encoding/hex"
-)
-
 // Leaf package for domain types. downloader, db, parser, runner and web all
 // import this; it must not import any of them.
 
@@ -17,21 +12,6 @@ type Track struct {
 	Name   string
 	Notes  string
 	Link   string
-}
-
-type StaticAsset struct {
-	Id        string
-	Name      string
-	Dir       string
-	CreatedAt string
-}
-
-func NewStaticAssetID() string {
-	var b [8]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	return hex.EncodeToString(b[:])
 }
 
 func GetTrackId(link string) string {

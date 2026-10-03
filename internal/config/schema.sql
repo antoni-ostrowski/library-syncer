@@ -12,11 +12,3 @@ CREATE TABLE IF NOT EXISTS trackers (
     status TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS static_assets (
-    id TEXT NOT NULL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    dir TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL
-);
-
-
