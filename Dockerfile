@@ -16,8 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -ldflags="-s -w" -o library-syncer ./cmd/main.go
 
 FROM alpine:3.21 AS runner
-RUN apk add --no-cache ffmpeg python3 py3-pip && \
-    pip install --no-cache-dir --break-system-packages yt-dlp
+RUN apk add --no-cache ffmpeg
 WORKDIR /app
 RUN mkdir -p /app/data/secrets
 RUN mkdir -p /app/assets/covers

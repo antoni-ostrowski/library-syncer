@@ -16,7 +16,7 @@
 ## Run locally
 
 ```bash
-./scripts/dev.sh
+mise run dev
 ```
 
 - Loads `.env.local`.
@@ -25,7 +25,7 @@
 ## Build
 
 ```bash
-./scripts/build.sh
+mise run build
 ```
 
 Builds a stripped binary `./library-syncer` from `cmd/main.go`.
@@ -35,11 +35,11 @@ Builds a stripped binary `./library-syncer` from `cmd/main.go`.
 Build:
 
 ```bash
-./scripts/docker-build.sh
+mise run docker-build
 ```
 
 ```bash
-./scripts/docker-run-local.sh
+mise run docker-run-local
 ```
 
 The image is published as `antost360/library-syncer:latest`.
@@ -58,7 +58,7 @@ The image is published as `antost360/library-syncer:latest`.
 | `WORKER_COUNT` | Concurrent download workers | `6` | `6` |
 | `ASSETS_PATH` | Directory containing cover images (`<era>.jpg`, `default.jpg`) | `assets/covers` | `/app/data/covers` |
 
-The app loads `.env.local` automatically for local runs; Docker uses `--env-file ./scripts/.docker-env`.
+The app loads `.env.local` automatically for local runs; Docker uses `--env-file ./.docker-env`.
 
 ## Required secrets
 
@@ -77,7 +77,7 @@ Place inside `SECRETS_PATH`:
 │   ├── downloader           # pillows.su API downloader + tagging
 │   ├── gsh                  # Google Sheet CSV download
 │   ├── parser               # CSV → track model
-├── scripts                  # build, dev, docker build/run/deploy
+├── mise.toml                # dev/build/docker tasks (`mise tasks ls`)
 ├── assets/covers            # Cover images
 ├── Dockerfile
 └── .woodpecker.yml          # CI/CD pipeline

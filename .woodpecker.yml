@@ -4,6 +4,6 @@ steps:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     commands:
-      - ./scripts/docker-build.sh
+      - docker build -t antost360/library-syncer --platform=linux/amd64 .
     when:
       - event: pull_request
