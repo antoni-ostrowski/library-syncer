@@ -2,9 +2,7 @@ package db
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -22,14 +20,14 @@ func NewDbService(db *sql.DB) *DbService {
 type SyncResult struct {
 	InsertedOrUpdated int
 	DeletionsCount    int
-	TracksToDownload  []model.Downloadable
+	TracksToDownload  []model.Track
 }
 
 func (s SyncResult) String() string {
 	return fmt.Sprintf("inserted or updated: %v, deleted: %v", s.InsertedOrUpdated, s.DeletionsCount)
 }
 
-func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]model.Downloadable, trackerUniqueDbId string) (SyncResult, error) {
+func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]model.Track, tracker_id string) (SyncResult, error) {
 	fmt.Printf("---syncing source tracks to database... \n")
 
 	tx, err := d.db.BeginTx(ctx, nil)
@@ -44,20 +42,19 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]model.Downlo
 	freshIds := make(map[string]struct{})
 
 	for _, t := range *sourceTracks {
-
-		hashId, jsonStr, err := prepareTrack(&t)
+		jsonBytes, err := json.Marshal(t)
 		if err != nil {
 			return SyncResult{}, fmt.Errorf("failed to prepare track: %v", err)
 		}
 
 		upsertSQL := `
-			INSERT INTO tracks (id, tracker_id, metadata)
+			INSERT INTO tracks (pillow_id, tracker_id, metadata)
 			VALUES (?, ?, ?)
-			ON CONFLICT(id, tracker_id) DO UPDATE SET metadata = EXCLUDED.metadata
+			ON CONFLICT(pillow_id, tracker_id) DO UPDATE SET metadata = EXCLUDED.metadata
 			WHERE tracks.metadata <> EXCLUDED.metadata;
 		`
 
-		if _, err := tx.ExecContext(ctx, upsertSQL, hashId, trackerUniqueDbId, jsonStr); err != nil {
+		if _, err := tx.ExecContext(ctx, upsertSQL, t.Id, tracker_id, string(jsonBytes)); err != nil {
 			return SyncResult{}, err
 		}
 
@@ -72,10 +69,10 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]model.Downlo
 			result.TracksToDownload = append(result.TracksToDownload, t)
 		}
 
-		freshIds[hashId] = struct{}{}
+		freshIds[t.Id] = struct{}{}
 	}
 
-	rows, err := tx.QueryContext(ctx, "SELECT id FROM tracks WHERE tracker_id = ?;", trackerUniqueDbId)
+	rows, err := tx.QueryContext(ctx, "SELECT pillow_id FROM tracks WHERE tracker_id = ?;", tracker_id)
 	if err != nil {
 		return SyncResult{}, err
 	}
@@ -87,7 +84,7 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]model.Downlo
 			return SyncResult{}, err
 		}
 		if _, exists := freshIds[dbId]; !exists {
-			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ? AND tracker_id = ?;", dbId, trackerUniqueDbId); err != nil {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE pillow_id = ? AND tracker_id = ?;", dbId, tracker_id); err != nil {
 				return SyncResult{}, err
 			}
 			result.DeletionsCount++
@@ -95,20 +92,6 @@ func (d *DbService) SyncTracks(ctx context.Context, sourceTracks *[]model.Downlo
 	}
 
 	return result, tx.Commit()
-}
-
-func prepareTrack(track *model.Downloadable) (string, string, error) {
-	jsonBytes, err := json.Marshal(track)
-	if err != nil {
-		return "", "", err
-	}
-
-	jsonString := string(jsonBytes)
-
-	hash := sha256.Sum256([]byte(jsonString))
-	// [:] to turn fixed size [32]byte (hash var) arr to slice []byte
-	hashId := hex.EncodeToString(hash[:])
-	return hashId, jsonString, nil
 }
 
 func (d *DbService) ListTrackers(ctx context.Context) ([]model.Tracker, error) {
@@ -189,52 +172,26 @@ func (d *DbService) GetTracker(ctx context.Context, trackerId string) (model.Tra
 
 }
 
-func (d *DbService) GetTracksForTracker(ctx context.Context, trackerId string) ([]model.Downloadable, error) {
-	rows, err := d.db.QueryContext(ctx, `SELECT metadata FROM tracks WHERE tracker_id LIKE ?;`, trackerId+"#%")
+func (d *DbService) GetTracksForTracker(ctx context.Context, trackerId string) ([]model.Track, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT metadata FROM tracks WHERE tracker_id = ?;`, trackerId)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []model.Downloadable
+	var result []model.Track
 	for rows.Next() {
 		var meta string
 		if err := rows.Scan(&meta); err != nil {
 			return nil, err
 		}
-		var dt model.DownloadableTrack
+		var dt model.Track
 		if err := json.Unmarshal([]byte(meta), &dt); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal track metadata: %w", err)
 		}
 		// copy to heap so each pointer is distinct
 		track := dt
-		result = append(result, &track)
+		result = append(result, track)
 	}
 	return result, rows.Err()
-}
-
-func (d *DbService) GetFilePathByHash(ctx context.Context, hash string) (string, bool, error) {
-	var path string
-	err := d.db.QueryRowContext(ctx, `SELECT path FROM files WHERE content_hash = ?;`, hash).Scan(&path)
-	if err == sql.ErrNoRows {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	return path, true, nil
-}
-
-// PutFileHash inserts hash->path. Returns inserted=false when another worker
-// won the race (row already exists); caller should then drop its own copy.
-func (d *DbService) PutFileHash(ctx context.Context, hash, path string) (bool, error) {
-	res, err := d.db.ExecContext(ctx, `INSERT OR IGNORE INTO files (content_hash, path) VALUES (?, ?);`, hash, path)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	return n == 1, nil
 }

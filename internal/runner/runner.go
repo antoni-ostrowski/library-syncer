@@ -21,7 +21,7 @@ type Runner struct {
 	db               *db.DbService
 	devMode          bool
 	sleepDuration    time.Duration
-	tracksToDownload chan model.Downloadable
+	tracksToDownload chan model.Track
 	songsPath        string
 }
 type CmdType int
@@ -39,7 +39,7 @@ type Cmd struct {
 func New(db *db.DbService, sleepSec int, devMode bool, songsPath string) *Runner {
 	return &Runner{
 		db:               db,
-		tracksToDownload: make(chan model.Downloadable, 10000),
+		tracksToDownload: make(chan model.Track, 10000),
 		sleepDuration:    time.Duration(sleepSec) * time.Second,
 		devMode:          devMode,
 		manual:           make(chan Cmd, 1),
@@ -91,7 +91,7 @@ func (r *Runner) IsRunning() bool {
 	return r.running.Load()
 }
 
-func (r *Runner) Enqueue(tracks []model.Downloadable) int {
+func (r *Runner) Enqueue(tracks []model.Track) int {
 	count := 0
 	for _, t := range tracks {
 		select {
@@ -117,7 +117,7 @@ func (r *Runner) runTracker(ctx context.Context, trackerId string) {
 		fmt.Printf("%v", err)
 		os.Exit(1)
 	}
-	ExecuteTracker(ctx, r.db, tracker, r.tracksToDownload)
+	r.syncTracker(ctx, tracker)
 }
 
 func (r *Runner) runAll(ctx context.Context) {
@@ -133,52 +133,62 @@ func (r *Runner) runAll(ctx context.Context) {
 	}
 
 	for _, v := range trackers {
-		ExecuteTracker(ctx, r.db, v, r.tracksToDownload)
+		r.syncTracker(ctx, v)
 	}
 
 	fmt.Printf("---sleeping---\n")
 
 }
 
-func ExecuteTracker(ctx context.Context, db *db.DbService, tracker model.Tracker, tracksToDownload chan<- model.Downloadable) {
+func (r *Runner) syncTracker(ctx context.Context, tracker model.Tracker) {
 	fmt.Printf("running for %v\n", tracker.Artist)
 	upTracker := tracker
 	upTracker.Status = "syncing"
-	if err := db.UpsertTracker(ctx, upTracker); err != nil {
+	if err := r.db.UpsertTracker(ctx, upTracker); err != nil {
 		log.Printf("failed to mark syncing: %v", err)
 		return
 	}
+
+	sourceTracks, err := parseTracker(ctx, tracker)
+	if err != nil {
+		return
+	}
+
+	syncResult, err := r.db.SyncTracks(ctx, &sourceTracks, tracker.Id)
+	if err != nil {
+		fmt.Printf("failed to sync tracks to db: %v\n", err)
+		return
+	}
+	fmt.Println(syncResult)
+	for _, v := range syncResult.TracksToDownload {
+		r.tracksToDownload <- v
+	}
+
+	upTracker.Status = "synced"
+	if err := r.db.UpsertTracker(ctx, upTracker); err != nil {
+		log.Printf("failed to mark final status: %v", err)
+	}
+}
+
+func parseTracker(ctx context.Context, tracker model.Tracker) ([]model.Track, error) {
+	var allTracks []model.Track
 	for _, readRange := range tracker.ReadRanges {
 		csvPath, err := srccsv.DownloadSourceCsv(ctx, tracker.Id, readRange.Name)
 		if err != nil {
 			fmt.Printf("failed to download source csv: %v\n", err)
-			return
+			return nil, err
 		}
 		fmt.Printf("csv at %v\n", csvPath)
 
 		sourceTracks, err := parser.Parse(csvPath, tracker.Artist, readRange.Mapping)
 		if err != nil {
 			fmt.Printf("failed to parse source csv: %v\n", err)
-			return
+			return nil, err
 		}
 		fmt.Printf("%v source tracks found\n", len(sourceTracks))
 
-		trackerUniqueDbId := tracker.Id + "#" + readRange.Name
-		syncResult, err := db.SyncTracks(ctx, &sourceTracks, trackerUniqueDbId)
-		if err != nil {
-			fmt.Printf("failed to sync tracks to db: %v\n", err)
-			return
-		}
-		fmt.Println(syncResult)
-		for _, v := range syncResult.TracksToDownload {
-			tracksToDownload <- v
-		}
-
+		allTracks = append(allTracks, sourceTracks...)
 	}
 
-	upTracker.Status = "synced"
-	if err := db.UpsertTracker(ctx, upTracker); err != nil {
-		log.Printf("failed to mark final status: %v", err)
-	}
-
+	return allTracks, nil
 }

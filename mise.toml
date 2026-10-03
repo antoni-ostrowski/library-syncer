@@ -1,0 +1,34 @@
+[tools]
+go = "1.25"
+
+[env]
+_.file = ".env.local"
+
+[tasks.build]
+description = "Build stripped binary ./library-syncer from cmd/main.go"
+run = "go build -ldflags=\"-s -w\" -o library-syncer ./cmd/main.go"
+
+[tasks.clean]
+description = "Remove dev sqlite db and downloaded songs"
+run = "rm -rf dev/data.db dev/songs/* && echo \"cleaned songs and data.db\""
+
+[tasks.dev]
+description = "Run locally in dev mode (single pass, loads .env.local)"
+run = "go run ./cmd/main.go -d"
+
+[tasks.dev-clean]
+description = "Clean then run templ generate --watch with dev server"
+depends = ["clean"]
+run = "templ generate --watch --cmd=\"mise run dev\""
+
+[tasks.docker-build]
+description = "Build linux/amd64 image antost360/library-syncer"
+run = "docker build -t antost360/library-syncer --platform=linux/amd64 ."
+
+[tasks.docker-deploy]
+description = "Push antost360/library-syncer:latest to Docker Hub"
+run = "docker image push antost360/library-syncer:latest"
+
+[tasks.docker-run-local]
+description = "Run latest image locally with dev bind mounts"
+run = "docker run -v ./dev/docker-data/:/app/data -p 3000:3000 --env-file ./.docker-env antost360/library-syncer:latest"
